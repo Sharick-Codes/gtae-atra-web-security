@@ -92,37 +92,117 @@ export default function App() {
   const [tab, setTab] = useState('overview');
   const [anomalyHistory, setAnomalyHistory] = useState([]);
   const [reqHistory, setReqHistory] = useState([]);
+  const [copied, setCopied] = useState(false);
 
-  // Build chart data from incoming stats
+  // Read initial site from URL: ?site=ai-research-paper-explainer
+  const [selectedSite, setSelectedSite] = useState(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get('site');
+      return p ? p.trim() : 'all';
+    } catch {
+      return 'all';
+    }
+  });
+
+  // Calculate available sites dynamically
+  const availableSites = React.useMemo(() => {
+    const set = new Set(stats?.monitored_sites || []);
+    alerts.forEach(a => { if (a.site_id) set.add(a.site_id); });
+    if (set.size === 0) {
+      set.add('ai-research-paper-explainer');
+      set.add('fitfuel-store');
+    }
+    return Array.from(set).filter(Boolean);
+  }, [stats, alerts]);
+
+  // Handle site selection change & update URL
+  const handleSiteChange = (site) => {
+    setSelectedSite(site);
+    try {
+      const url = new URL(window.location);
+      if (site === 'all') {
+        url.searchParams.delete('site');
+      } else {
+        url.searchParams.set('site', site);
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch (e) {
+      console.warn('Could not update history state:', e);
+    }
+  };
+
+  // Copy shareable link
+  const copySiteLink = () => {
+    try {
+      const url = new URL(window.location.href);
+      if (selectedSite !== 'all') {
+        url.searchParams.set('site', selectedSite);
+      }
+      navigator.clipboard.writeText(url.toString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
+  // Filter events for the selected site
+  const filteredAlerts = React.useMemo(() => {
+    if (selectedSite === 'all') return alerts;
+    return alerts.filter(e => (e.site_id || 'default') === selectedSite);
+  }, [alerts, selectedSite]);
+
+  // Filter blocked IPs for the selected site
+  const filteredBlockedIPs = React.useMemo(() => {
+    if (selectedSite === 'all') return stats?.blocked_ips || [];
+    const ips = new Set();
+    filteredAlerts.forEach(e => {
+      if ((e.action === 'BLOCK' || e.action === 'SIMULATED_BLOCK') && e.source_ip) {
+        ips.add(e.source_ip);
+      }
+    });
+    return Array.from(ips);
+  }, [filteredAlerts, selectedSite, stats]);
+
+  // Filtered metrics
+  const total = selectedSite === 'all' ? (stats?.total_requests || 0) : filteredAlerts.length;
+  const alerts_ = selectedSite === 'all'
+    ? (stats?.total_alerts || 0)
+    : filteredAlerts.filter(e => e.is_anomaly).length;
+  const blocked = selectedSite === 'all'
+    ? (stats?.total_blocked || 0)
+    : filteredBlockedIPs.length;
+  const normal = selectedSite === 'all'
+    ? (stats?.total_normal || 0)
+    : filteredAlerts.filter(e => !e.is_anomaly).length;
+  const rps = stats?.requests_per_second || 0;
+  
+  const siteAnomalyPoints = selectedSite === 'all'
+    ? (stats?.anomaly_score_history || [])
+    : (stats?.anomaly_score_history || []).filter(pt => !pt.site_id || pt.site_id === selectedSite);
+  const latestScore = siteAnomalyPoints.slice(-1)[0]?.score || (filteredAlerts[0]?.anomaly_score || 0);
+
+  // Build chart data
   useEffect(() => {
     if (!stats) return;
     const ts = new Date().toLocaleTimeString();
 
     setAnomalyHistory(prev => {
-      const last = stats.anomaly_score_history || [];
-      const newest = last.slice(-1)[0];
-      const point = { time: ts, score: newest?.score || 0, level: newest?.level || 'Low' };
+      const point = { time: ts, score: latestScore || 0, level: latestScore > 70 ? 'Critical' : latestScore > 40 ? 'High' : 'Low' };
       return [...prev, point].slice(-60);
     });
 
     setReqHistory(prev => {
       const point = {
-        time:    ts,
-        total:   stats.total_requests || 0,
-        alerts:  stats.total_alerts   || 0,
-        blocked: stats.total_blocked  || 0,
-        rps:     stats.requests_per_second || 0,
+        time: ts,
+        total: total || 0,
+        alerts: alerts_ || 0,
+        blocked: blocked || 0,
+        rps: rps || 0,
       };
       return [...prev, point].slice(-60);
     });
-  }, [stats]);
-
-  const total   = stats?.total_requests   || 0;
-  const alerts_ = stats?.total_alerts     || 0;
-  const blocked = stats?.total_blocked    || 0;
-  const normal  = stats?.total_normal     || 0;
-  const rps     = stats?.requests_per_second || 0;
-  const latestScore = stats?.anomaly_score_history?.slice(-1)[0]?.score || 0;
+  }, [stats, total, alerts_, blocked, rps, latestScore]);
 
   return (
     <div className="app">
@@ -133,6 +213,27 @@ export default function App() {
           <span className="brand-name">GTAE-ATRA</span>
           <span className="brand-sub">Web Security Monitor</span>
         </div>
+
+        {/* Multi-Tenant Site Selector */}
+        <div className="site-selector-wrapper">
+          <span className="site-selector-label">🌐 Site:</span>
+          <select
+            className="site-selector-select"
+            value={selectedSite}
+            onChange={(e) => handleSiteChange(e.target.value)}
+          >
+            <option value="all">All Protected Sites ({availableSites.length})</option>
+            {availableSites.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          {selectedSite !== 'all' && (
+            <button className="site-share-btn" onClick={copySiteLink} title="Copy shareable link for this site">
+              {copied ? '✓ Copied!' : '🔗 Share Link'}
+            </button>
+          )}
+        </div>
+
         <div className="navbar-status">
           <span className={`status-dot ${connected ? 'active' : 'offline'}`} />
           <span className="status-text">{connected ? 'Live' : 'Offline'}</span>
@@ -154,6 +255,20 @@ export default function App() {
       </div>
 
       <div className="main-content">
+        {/* Site Filter Notification Banner */}
+        {selectedSite !== 'all' && (
+          <div className="site-filter-banner">
+            <div>
+              Viewing private security logs for website: <b>{selectedSite}</b>
+              <span style={{ color: '#94a3b8', marginLeft: '0.5rem', fontSize: '0.8rem' }}>
+                (Only telemetry and threats targeting this site are shown)
+              </span>
+            </div>
+            <button className="site-filter-reset-btn" onClick={() => handleSiteChange('all')}>
+              Show All Sites
+            </button>
+          </div>
+        )}
 
         {/* ================ OVERVIEW TAB ================ */}
         {tab === 'overview' && (
@@ -162,8 +277,10 @@ export default function App() {
             <div className="stats-grid">
               <StatCard label="Total Requests"    value={total.toLocaleString()} icon="📊" accent="#60a5fa" />
               <StatCard label="Req / Second"       value={rps.toFixed(1)}         icon="⚡" accent="#a78bfa" />
-              <StatCard label="Protected Sites"   value={stats?.site_count || (stats?.monitored_sites?.length || 1)} icon="🌐" accent="#38bdf8"
-                        sub={(stats?.monitored_sites || ['Active']).slice(0, 2).join(', ')} />
+              <StatCard label={selectedSite === 'all' ? "Protected Sites" : "Monitored Target"}
+                        value={selectedSite === 'all' ? (stats?.site_count || availableSites.length) : selectedSite}
+                        icon="🌐" accent="#38bdf8"
+                        sub={selectedSite === 'all' ? availableSites.slice(0, 2).join(', ') : 'Dedicated Mode'} />
               <StatCard label="Security Alerts"   value={alerts_.toLocaleString()} icon="🚨" accent="#fb923c" />
               <StatCard label="Blocked IPs"       value={blocked.toLocaleString()} icon="🚫" accent="#f87171" />
               <StatCard label="Normal Requests"   value={normal.toLocaleString()}  icon="✅" accent="#34d399" />
@@ -228,16 +345,18 @@ export default function App() {
 
             {/* Recent events (last 10) */}
             <div className="card" style={{ marginTop:'1.5rem' }}>
-              <h3 className="chart-title" style={{ marginBottom:'1rem' }}>Recent Security Events</h3>
+              <h3 className="chart-title" style={{ marginBottom:'1rem' }}>
+                Recent Security Events {selectedSite !== 'all' && `(${selectedSite})`}
+              </h3>
               <div className="alert-table">
                 <div className="alert-header">
                   <div>Time</div><div>Source IP</div><div>Site</div><div>Endpoint</div>
                   <div>Score</div><div>Risk</div><div>Action</div>
                 </div>
-                {alerts.slice(0, 10).map((e, i) => <AlertRow key={i} event={e} index={i} />)}
-                {alerts.length === 0 && (
+                {filteredAlerts.slice(0, 10).map((e, i) => <AlertRow key={i} event={e} index={i} />)}
+                {filteredAlerts.length === 0 && (
                   <div style={{ textAlign:'center', padding:'2rem', color:'#7878a0' }}>
-                    No events yet. Traffic monitoring active...
+                    No events recorded for this website yet. Monitoring active...
                   </div>
                 )}
               </div>
@@ -249,16 +368,19 @@ export default function App() {
         {tab === 'alerts' && (
           <div className="card">
             <h3 className="chart-title" style={{ marginBottom:'1rem' }}>
-              Security Alerts
-              <span className="badge badge-high" style={{ marginLeft:'0.75rem' }}>{alerts.filter(e=>e.is_anomaly).length} alerts</span>
+              Security Alerts {selectedSite !== 'all' && `(${selectedSite})`}
+              <span className="badge badge-high" style={{ marginLeft:'0.75rem' }}>
+                {filteredAlerts.filter(e=>e.is_anomaly).length} alerts
+              </span>
             </h3>
-            {alerts.filter(e => e.is_anomaly).map((e, i) => (
+            {filteredAlerts.filter(e => e.is_anomaly).map((e, i) => (
               <div key={i} className="alert-detail animate-slide-in" style={{ animationDelay: `${i*0.03}s` }}>
                 <div className="alert-detail-header">
                   <div>
                     <span className="mono" style={{ color:'#60a5fa' }}>{e.source_ip}</span>
                     <span style={{ margin:'0 0.5rem', color:'#7878a0' }}>→</span>
                     <span className="mono" style={{ color:'#a78bfa' }}>{e.endpoint}</span>
+                    <span className="badge badge-allow" style={{ marginLeft:'0.75rem' }}>{e.site_id || 'default'}</span>
                   </div>
                   <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
                     {riskBadge(e.risk_level)}
@@ -281,9 +403,9 @@ export default function App() {
                 </div>
               </div>
             ))}
-            {alerts.filter(e=>e.is_anomaly).length === 0 && (
+            {filteredAlerts.filter(e=>e.is_anomaly).length === 0 && (
               <div style={{ textAlign:'center', padding:'3rem', color:'#7878a0' }}>
-                ✅ No security alerts yet
+                ✅ No security alerts for {selectedSite === 'all' ? 'any site' : selectedSite}
               </div>
             )}
           </div>
@@ -292,16 +414,18 @@ export default function App() {
         {/* ================ LOGS TAB ================ */}
         {tab === 'logs' && (
           <div className="card">
-            <h3 className="chart-title" style={{ marginBottom:'1rem' }}>All Security Events</h3>
+            <h3 className="chart-title" style={{ marginBottom:'1rem' }}>
+              All Security Events {selectedSite !== 'all' && `(${selectedSite})`}
+            </h3>
             <div className="alert-table">
               <div className="alert-header">
-                <div>Time</div><div>IP</div><div>Endpoint</div>
+                <div>Time</div><div>Source IP</div><div>Site</div><div>Endpoint</div>
                 <div>Score</div><div>Risk</div><div>Action</div>
               </div>
-              {alerts.map((e, i) => <AlertRow key={i} event={e} index={i} />)}
-              {alerts.length === 0 && (
+              {filteredAlerts.map((e, i) => <AlertRow key={i} event={e} index={i} />)}
+              {filteredAlerts.length === 0 && (
                 <div style={{ textAlign:'center', padding:'2rem', color:'#7878a0' }}>
-                  No events logged yet.
+                  No events logged for {selectedSite === 'all' ? 'any site' : selectedSite} yet.
                 </div>
               )}
             </div>
@@ -312,18 +436,20 @@ export default function App() {
         {tab === 'blocked' && (
           <div className="card">
             <h3 className="chart-title" style={{ marginBottom:'1rem' }}>
-              Blocked IPs
-              <span className="badge badge-block" style={{ marginLeft:'0.75rem' }}>{stats?.blocked_ips?.length || 0}</span>
+              Blocked IPs {selectedSite !== 'all' && `(${selectedSite})`}
+              <span className="badge badge-block" style={{ marginLeft:'0.75rem' }}>
+                {filteredBlockedIPs.length}
+              </span>
             </h3>
-            {(stats?.blocked_ips || []).map((ip, i) => (
+            {filteredBlockedIPs.map((ip, i) => (
               <div key={i} className="blocked-row animate-slide-in" style={{ animationDelay: `${i*0.05}s` }}>
                 <span className="mono" style={{ color:'#f87171' }}>🚫 {ip}</span>
                 <span className="badge badge-block">BLOCKED</span>
               </div>
             ))}
-            {(!stats?.blocked_ips || stats.blocked_ips.length === 0) && (
+            {filteredBlockedIPs.length === 0 && (
               <div style={{ textAlign:'center', padding:'3rem', color:'#7878a0' }}>
-                ✅ No IPs currently blocked
+                ✅ No IPs currently blocked on {selectedSite === 'all' ? 'any site' : selectedSite}
               </div>
             )}
             <p style={{ marginTop:'1.5rem', color:'#7878a0', fontSize:'0.85rem' }}>

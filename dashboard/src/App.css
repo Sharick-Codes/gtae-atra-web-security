@@ -180,3 +180,82 @@
   .alert-header > div:nth-child(4),
   .alert-row    > div:nth-child(4) { display: none; }
 }
+
+/* ---- Multi-Tenant Site Selector ---- */
+.site-selector-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(22, 22, 40, 0.8);
+  border: 1px solid #383856;
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+}
+.site-selector-label {
+  font-size: 0.8rem;
+  color: #a0a0c0;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.site-selector-select {
+  background: #141428;
+  color: #38bdf8;
+  border: 1px solid #2a2a45;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.site-selector-select:hover, .site-selector-select:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+.site-share-btn {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 6px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.site-share-btn:hover {
+  background: #38bdf8;
+  color: #0b0f19;
+}
+.site-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  font-size: 0.88rem;
+  color: #e2e8f0;
+}
+.site-filter-banner b {
+  color: #38bdf8;
+}
+.site-filter-reset-btn {
+  background: transparent;
+  border: 1px solid #7878a0;
+  color: #cbd5e1;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.site-filter-reset-btn:hover {
+  background: #2a2a45;
+  color: #ffffff;
+}

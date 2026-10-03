@@ -360,20 +360,39 @@ def receive_telemetry():
     return jsonify({"status": "ok", "event": event, "blocked": is_blocked}), 200
 
 
+_site_stats = defaultdict(lambda: {
+    "total_requests": 0,
+    "total_alerts": 0,
+    "total_blocked": 0,
+    "total_normal": 0,
+    "blocked_ips": set(),
+})
+
 def _update_stats_and_emit(event: dict, source_ip: str):
     """Update in-memory stats and emit to connected dashboard clients."""
+    site_id = event.get("site_id", "default")
     with _stats_lock:
+        if "monitored_sites" not in _stats:
+            _stats["monitored_sites"] = set()
+        _stats["monitored_sites"].add(site_id)
+
+        s_stats = _site_stats[site_id]
+
         if event["is_anomaly"]:
             _stats["total_alerts"] += 1
+            s_stats["total_alerts"] += 1
             if event["action"] in ("BLOCK", "SIMULATED_BLOCK"):
                 _stats["total_blocked"] += 1
                 _stats["blocked_ips"].add(source_ip)
+                s_stats["total_blocked"] += 1
+                s_stats["blocked_ips"].add(source_ip)
         else:
             _stats["total_normal"] += 1
+            s_stats["total_normal"] += 1
 
         # Ring buffer of recent events
         _stats["last_events"].insert(0, event)
-        _stats["last_events"] = _stats["last_events"][:50]
+        _stats["last_events"] = _stats["last_events"][:100]
 
         # Anomaly score history (for graphs)
         _stats["anomaly_scores"].append({
@@ -381,6 +400,7 @@ def _update_stats_and_emit(event: dict, source_ip: str):
             "score":     event["anomaly_score"],
             "ip":        source_ip,
             "level":     event["risk_level"],
+            "site_id":   site_id,
         })
         _stats["anomaly_scores"] = _stats["anomaly_scores"][-200:]
 
@@ -409,20 +429,43 @@ def _log_event(event: dict):
         logger.warning(f"Failed to write event log: {exc}")
 
 
-def _build_stats_payload() -> dict:
+def _build_stats_payload(site_id: str = None) -> dict:
     with _stats_lock:
         now = time.time()
         recent_10s = [t for t in _stats["request_times"] if now - t < 10]
+        all_sites = list(_stats.get("monitored_sites", set()))
+
+        if site_id and site_id != "all":
+            s = _site_stats.get(site_id, {
+                "total_requests": 0, "total_alerts": 0, "total_blocked": 0, "total_normal": 0, "blocked_ips": set()
+            })
+            site_events = [e for e in _stats["last_events"] if e.get("site_id") == site_id]
+            site_scores = [pt for pt in _stats["anomaly_scores"] if pt.get("site_id") == site_id]
+            return {
+                "site_id":              site_id,
+                "total_requests":       s["total_requests"],
+                "total_alerts":         s["total_alerts"],
+                "total_blocked":        s["total_blocked"],
+                "total_normal":         s["total_normal"],
+                "requests_per_second":  round(len(recent_10s) / 10.0, 2),
+                "monitored_sites":      all_sites,
+                "site_count":           len(all_sites),
+                "blocked_ips":          list(s["blocked_ips"])[-20:],
+                "recent_events":        site_events[:30],
+                "anomaly_score_history":site_scores[-50:],
+            }
+
         return {
+            "site_id":              "all",
             "total_requests":       _stats["total_requests"],
             "total_alerts":         _stats["total_alerts"],
             "total_blocked":        _stats["total_blocked"],
             "total_normal":         _stats["total_normal"],
             "requests_per_second":  round(len(recent_10s) / 10.0, 2),
-            "monitored_sites":      list(_stats.get("monitored_sites", set())),
-            "site_count":           len(_stats.get("monitored_sites", set())),
+            "monitored_sites":      all_sites,
+            "site_count":           len(all_sites),
             "blocked_ips":          list(_stats["blocked_ips"])[-20:],
-            "recent_events":        _stats["last_events"][:20],
+            "recent_events":        _stats["last_events"][:30],
             "anomaly_score_history":_stats["anomaly_scores"][-50:],
         }
 
@@ -433,20 +476,28 @@ def _build_stats_payload() -> dict:
 
 @app.route("/api/security/stats", methods=["GET"])
 def api_stats():
-    return jsonify(_build_stats_payload())
+    site_id = request.args.get("site")
+    return jsonify(_build_stats_payload(site_id=site_id))
 
 
 @app.route("/api/security/events", methods=["GET"])
 def api_events():
     limit = int(request.args.get("limit", 50))
+    site_id = request.args.get("site")
     with _stats_lock:
-        return jsonify({"events": _stats["last_events"][:limit], "total": _stats["total_alerts"]})
+        evs = _stats["last_events"]
+        if site_id and site_id != "all":
+            evs = [e for e in evs if e.get("site_id") == site_id]
+        return jsonify({"events": evs[:limit], "total": len(evs)})
 
 
 @app.route("/api/security/alerts", methods=["GET"])
 def api_alerts():
+    site_id = request.args.get("site")
     with _stats_lock:
         alerts = [e for e in _stats["last_events"] if e.get("is_anomaly")]
+        if site_id and site_id != "all":
+            alerts = [e for e in alerts if e.get("site_id") == site_id]
     return jsonify({"alerts": alerts[:50], "count": len(alerts)})
 
 

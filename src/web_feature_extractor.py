@@ -120,9 +120,9 @@ def extract_features(requests: list, window_seconds: float = None) -> np.ndarray
 
     n = len(requests)
     methods   = [r.get("method", "GET").upper() for r in requests]
-    paths     = [r.get("path", "/") for r in requests]
+    paths     = [(r.get("path") or r.get("endpoint") or "/") for r in requests]
     queries   = [r.get("query", "") or "" for r in requests]
-    statuses  = [int(r.get("status", 200)) for r in requests]
+    statuses  = [int(r.get("status") if r.get("status") is not None else r.get("status_code", 200)) for r in requests]
     latencies = [float(r.get("response_time_ms", 0)) for r in requests]
     req_sizes = [int(r.get("request_size", 0)) for r in requests]
     agents    = [r.get("user_agent", "") or "" for r in requests]
