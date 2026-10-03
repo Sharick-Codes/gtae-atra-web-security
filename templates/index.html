@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTAE-IDS + ATRA | Security Operations Center</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            900: '#0a0e17',
+                            800: '#111827',
+                            700: '#1f2937',
+                            card: '#131c2e',
+                            border: '#22324e',
+                            accent: '#06b6d4',
+                            emerald: '#10b981',
+                            amber: '#f59e0b',
+                            rose: '#f43f5e',
+                            violet: '#8b5cf6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar for terminal and tables */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0e17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #22324e;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #06b6d4;
+        }
+        .font-mono-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        @keyframes pulse-fast {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .live-pulse {
+            animation: pulse-fast 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-cyber-900 text-gray-200 min-h-screen font-sans antialiased selection:bg-cyan-500 selection:text-white">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-cyber-800/80 backdrop-blur border-b border-cyber-border sticky top-0 z-50 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 ring-1 ring-white/20">
+                <i class="fa-solid fa-shield-halved text-white text-lg"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-bold text-lg text-white tracking-wide">GTAE-IDS + ATRA</h1>
+                    <span class="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">SOC Dashboard</span>
+                </div>
+                <p class="text-xs text-gray-400">Graph Transformer Autoencoder &bull; Adaptive Threat Response</p>
+            </div>
+        </div>
+
+        <!-- System Controls -->
+        <div class="flex items-center gap-3">
+            <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyber-card border border-cyber-border text-xs text-gray-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 live-pulse"></span>
+                <span id="statusText">System Ready</span>
+            </div>
+
+            <button onclick="triggerPipeline()" id="btnRunPipeline" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-sm font-semibold shadow-lg shadow-cyan-500/25 transition-all transform active:scale-95">
+                <i class="fa-solid fa-play text-xs"></i> Run Pipeline
+            </button>
+
+            <button onclick="triggerEvaluation()" id="btnRunEval" class="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-cyber-700 hover:bg-cyber-border text-gray-200 text-sm font-medium border border-cyber-border transition-all">
+                <i class="fa-solid fa-chart-simple text-xs"></i> Evaluate
+            </button>
+
+            <button onclick="clearTerminal()" title="Clear Console" class="p-2 rounded-lg bg-cyber-card hover:bg-cyber-700 text-gray-400 hover:text-white border border-cyber-border transition-all">
+                <i class="fa-solid fa-broom text-xs"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-[1600px] mx-auto p-6 space-y-6">
+
+        <!-- Top Metrics Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Card 1: Total Flows -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 shadow-sm hover:border-cyan-500/40 transition-all">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Flows Processed</span>
+                    <span class="p-2 rounded-lg bg-blue-500/10 text-blue-400"><i class="fa-solid fa-network-wired"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="cardTotalFlows" class="text-2xl font-bold text-white">500</span>
+                    <span class="text-xs text-gray-400">Total</span>
+                </div>
+                <div class="mt-2 text-xs text-gray-400 flex justify-between">
+                    <span>Benign: <strong id="cardBenignFlows" class="text-emerald-400 font-mono">343</strong></span>
+                    <span>Anomalous: <strong id="cardAnomFlows" class="text-rose-400 font-mono">157</strong></span>
+                </div>
+            </div>
+
+            <!-- Card 2: Detection Recall (TPR) -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 shadow-sm hover:border-emerald-500/40 transition-all">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Detection TPR</span>
+                    <span class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><i class="fa-solid fa-crosshairs"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="cardTPR" class="text-2xl font-bold text-emerald-400">100.0%</span>
+                    <span class="text-xs text-emerald-400/80 font-medium">0 Missed</span>
+                </div>
+                <div class="mt-2 text-xs text-gray-400">
+                    Ensemble Recall (IF + OCSVM + HBOS)
+                </div>
+            </div>
+
+            <!-- Card 3: False Positive Rate -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 shadow-sm hover:border-amber-500/40 transition-all">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">False Alarm (FPR)</span>
+                    <span class="p-2 rounded-lg bg-amber-500/10 text-amber-400"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="cardFPR" class="text-2xl font-bold text-amber-400">14.2%</span>
+                    <span class="text-xs text-gray-400">Handled by ATRA</span>
+                </div>
+                <div class="mt-2 text-xs text-gray-400">
+                    Degraded safely to Low risk (Log only)
+                </div>
+            </div>
+
+            <!-- Card 4: Classifier Accuracy -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 shadow-sm hover:border-violet-500/40 transition-all">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Attack Classifier</span>
+                    <span class="p-2 rounded-lg bg-violet-500/10 text-violet-400"><i class="fa-solid fa-fingerprint"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="cardClassifierAcc" class="text-2xl font-bold text-violet-400">84.0%</span>
+                    <span class="text-xs text-gray-400">F1: 0.84</span>
+                </div>
+                <div class="mt-2 text-xs text-gray-400">
+                    RandomForest on GTAE Embeddings
+                </div>
+            </div>
+
+            <!-- Card 5: Active Blacklist -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 shadow-sm hover:border-rose-500/40 transition-all">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Blacklisted IPs</span>
+                    <span class="p-2 rounded-lg bg-rose-500/10 text-rose-400"><i class="fa-solid fa-ban"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="cardBlacklistCount" class="text-2xl font-bold text-rose-400">44</span>
+                    <span class="text-xs text-rose-400/80 font-medium">Auto-Blocked</span>
+                </div>
+                <div class="mt-2 text-xs text-gray-400">
+                    High / Critical Repeat Offenders
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Grid: Live Terminal Stream + Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left 7 cols: Real-Time Dual Output Terminal Console -->
+            <div class="lg:col-span-7 bg-cyber-card border border-cyber-border rounded-xl flex flex-col shadow-md overflow-hidden">
+                <!-- Terminal Header -->
+                <div class="bg-cyber-800 px-4 py-3 border-b border-cyber-border flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="flex gap-1.5">
+                            <span class="w-3 h-3 rounded-full bg-rose-500/80"></span>
+                            <span class="w-3 h-3 rounded-full bg-amber-500/80"></span>
+                            <span class="w-3 h-3 rounded-full bg-emerald-500/80"></span>
+                        </div>
+                        <span class="text-xs font-mono text-gray-400 ml-2"><i class="fa-solid fa-terminal mr-1 text-cyan-400"></i> LIVE TERMINAL STREAM (Real-time Broadcast)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none">
+                            <input type="checkbox" id="chkAutoScroll" checked class="rounded bg-cyber-900 border-cyber-border text-cyan-500 focus:ring-0">
+                            Auto-scroll
+                        </label>
+                        <span id="terminalStatusBadge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">STREAM ACTIVE</span>
+                    </div>
+                </div>
+
+                <!-- Terminal Output Window -->
+                <div id="terminalBody" class="bg-[#070b12] p-4 flex-1 h-[420px] overflow-y-auto font-mono-code text-xs text-gray-300 leading-relaxed space-y-0.5 select-text border-b border-cyber-border">
+                    <div class="text-cyan-400">[SYSTEM READY] Dual-Output Engine Active. Terminal stdout & Web SSE synchronized.</div>
+                    <div class="text-gray-500">Run 'python main.py' from terminal or click [Run Pipeline] above.</div>
+                </div>
+
+                <!-- Terminal Footer Status Bar -->
+                <div class="bg-cyber-800/60 px-4 py-2 flex items-center justify-between text-[11px] text-gray-400">
+                    <div class="flex items-center gap-3">
+                        <span><strong class="text-gray-300">Target:</strong> d:\IDS-Project</span>
+                        <span><strong class="text-gray-300">Model:</strong> GTAE-IDS (PyTorch)</span>
+                    </div>
+                    <div>
+                        <span class="text-cyan-400"><i class="fa-solid fa-signal mr-1"></i> Output synced to terminal & web</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right 5 cols: Analytics & Risk Tiers -->
+            <div class="lg:col-span-5 space-y-6">
+
+                <!-- Risk Tiers Breakdown -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-semibold text-white text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-cyan-400"></i> ATRA Risk Tiers
+                        </h2>
+                        <span class="text-xs text-gray-400 font-mono">157 Flagged</span>
+                    </div>
+
+                    <div class="space-y-3">
+                        <!-- Low -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-blue-400 font-medium"><i class="fa-solid fa-circle-info mr-1"></i> Low (0-34): Log Only</span>
+                                <span id="tierCountLow" class="font-mono text-gray-300">81 (51.6%)</span>
+                            </div>
+                            <div class="w-full bg-cyber-900 rounded-full h-2 overflow-hidden">
+                                <div id="tierBarLow" class="bg-blue-500 h-2 rounded-full" style="width: 51.6%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Medium -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-amber-400 font-medium"><i class="fa-solid fa-bell mr-1"></i> Medium (35-59): Alert Admin</span>
+                                <span id="tierCountMedium" class="font-mono text-gray-300">7 (4.5%)</span>
+                            </div>
+                            <div class="w-full bg-cyber-900 rounded-full h-2 overflow-hidden">
+                                <div id="tierBarMedium" class="bg-amber-500 h-2 rounded-full" style="width: 4.5%"></div>
+                            </div>
+                        </div>
+
+                        <!-- High -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-orange-400 font-medium"><i class="fa-solid fa-ban mr-1"></i> High (60-79): Blacklist IP</span>
+                                <span id="tierCountHigh" class="font-mono text-gray-300">57 (36.3%)</span>
+                            </div>
+                            <div class="w-full bg-cyber-900 rounded-full h-2 overflow-hidden">
+                                <div id="tierBarHigh" class="bg-orange-500 h-2 rounded-full" style="width: 36.3%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Critical -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-rose-400 font-medium"><i class="fa-solid fa-skull-crossbones mr-1"></i> Critical (80-100): Block + Alert</span>
+                                <span id="tierCountCritical" class="font-mono text-gray-300">12 (7.6%)</span>
+                            </div>
+                            <div class="w-full bg-cyber-900 rounded-full h-2 overflow-hidden">
+                                <div id="tierBarCritical" class="bg-rose-500 h-2 rounded-full" style="width: 7.6%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Distribution Chart -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-sm">
+                    <h2 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-cyan-400"></i> Proportional Responses Taken
+                    </h2>
+                    <div class="h-[180px] relative">
+                        <canvas id="actionsChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Attack Events Log & Active Blacklist Feed -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Attack Events Table (8 cols) -->
+            <div class="lg:col-span-8 bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h2 class="font-semibold text-white text-base flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-cyan-400"></i> ATRA Live Threat Log
+                        </h2>
+                        <p class="text-xs text-gray-400">Dynamic risk scoring with exponential time-decay history</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="text" id="logSearch" placeholder="Search IP or Attack Type..." onkeyup="filterLogsTable()" class="px-3 py-1.5 rounded-lg bg-cyber-900 border border-cyber-border text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500">
+                        <span id="logTableCount" class="text-xs text-gray-400 font-mono">157 Events</span>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto max-h-[440px] border border-cyber-border/60 rounded-lg">
+                    <table class="w-full text-left text-xs text-gray-300">
+                        <thead class="bg-cyber-800/90 sticky top-0 text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-cyber-border">
+                            <tr>
+                                <th class="p-3">Timestamp</th>
+                                <th class="p-3">Source IP</th>
+                                <th class="p-3">Attack Type</th>
+                                <th class="p-3">Confidence</th>
+                                <th class="p-3">History</th>
+                                <th class="p-3">Risk Score</th>
+                                <th class="p-3">Risk Tier</th>
+                                <th class="p-3">Action Taken</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attackLogTableBody" class="divide-y divide-cyber-border/40 font-mono">
+                            <!-- Populated dynamically via JS -->
+                            <tr>
+                                <td colspan="8" class="p-6 text-center text-gray-500">Loading attack logs...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Active Blacklist Feed (4 cols) -->
+            <div class="lg:col-span-4 bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-semibold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-shield-virus text-rose-400"></i> Active Blacklist
+                    </h2>
+                    <span id="blacklistBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono">44 Blocked</span>
+                </div>
+                <p class="text-xs text-gray-400 mb-3">IPs triggering High/Critical escalation. Automatically dropped.</p>
+
+                <div class="overflow-y-auto max-h-[380px] space-y-2 flex-1 pr-1" id="blacklistContainer">
+                    <!-- Populated dynamically via JS -->
+                    <div class="p-3 text-center text-gray-500 text-xs">Loading active blacklist...</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Academic Submission Artifacts Section -->
+        <div class="bg-cyber-card border border-cyber-border rounded-xl p-5">
+            <h2 class="font-semibold text-white text-base mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-file-lines text-cyan-400"></i> Academic Submission Artifacts
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                <a href="/results/confusion_matrix.png" target="_blank" class="p-3.5 rounded-lg bg-cyber-900 border border-cyber-border hover:border-cyan-500/40 flex items-center justify-between group transition-all">
+                    <div>
+                        <strong class="text-gray-200 group-hover:text-cyan-400 block">Confusion Matrix Heatmap</strong>
+                        <span class="text-gray-500">results/confusion_matrix.png</span>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-gray-500 group-hover:text-cyan-400"></i>
+                </a>
+
+                <a href="/results/risk_score_distribution.png" target="_blank" class="p-3.5 rounded-lg bg-cyber-900 border border-cyber-border hover:border-cyan-500/40 flex items-center justify-between group transition-all">
+                    <div>
+                        <strong class="text-gray-200 group-hover:text-cyan-400 block">Risk Score Distribution</strong>
+                        <span class="text-gray-500">results/risk_score_distribution.png</span>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-gray-500 group-hover:text-cyan-400"></i>
+                </a>
+
+                <a href="/results/action_distribution.png" target="_blank" class="p-3.5 rounded-lg bg-cyber-900 border border-cyber-border hover:border-cyan-500/40 flex items-center justify-between group transition-all">
+                    <div>
+                        <strong class="text-gray-200 group-hover:text-cyan-400 block">Action Breakdown Plot</strong>
+                        <span class="text-gray-500">results/action_distribution.png</span>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-gray-500 group-hover:text-cyan-400"></i>
+                </a>
+
+                <a href="#" onclick="alert('REPORT.md is generated at D:/IDS-Project/REPORT.md'); return false;" class="p-3.5 rounded-lg bg-cyber-900 border border-cyber-border hover:border-cyan-500/40 flex items-center justify-between group transition-all">
+                    <div>
+                        <strong class="text-gray-200 group-hover:text-cyan-400 block">Academic Report</strong>
+                        <span class="text-gray-500">REPORT.md</span>
+                    </div>
+                    <i class="fa-solid fa-file-pdf text-gray-500 group-hover:text-cyan-400"></i>
+                </a>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Client-side JavaScript -->
+    <script>
+        let allLogRecords = [];
+        let actionsChart = null;
+
+        // 1. Initialize Server-Sent Events (SSE) for Real-Time Terminal Streaming
+        function initLogStream() {
+            const evtSource = new EventSource("/api/stream-logs");
+            const terminal = document.getElementById("terminalBody");
+            const autoScroll = document.getElementById("chkAutoScroll");
+
+            evtSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    const line = data.line;
+
+                    const lineDiv = document.createElement("div");
+                    lineDiv.textContent = line;
+
+                    // Colored syntax highlighting
+                    if (line.includes("STEP:") || line.includes("===")) {
+                        lineDiv.className = "text-cyan-400 font-bold";
+                    } else if (line.includes("COMPLETED") || line.includes("Saved") || line.includes("TPR: 100")) {
+                        lineDiv.className = "text-emerald-400";
+                    } else if (line.includes("ERROR") || line.includes("FAILED") || line.includes("Traceback")) {
+                        lineDiv.className = "text-rose-400 font-semibold";
+                    } else if (line.includes("WARN") || line.includes("High") || line.includes("Critical")) {
+                        lineDiv.className = "text-amber-400";
+                    } else {
+                        lineDiv.className = "text-gray-300";
+                    }
+
+                    terminal.appendChild(lineDiv);
+
+                    if (autoScroll.checked) {
+                        terminal.scrollTop = terminal.scrollHeight;
+                    }
+                } catch(e) {
+                    console.error("SSE parse error", e);
+                }
+            };
+
+            evtSource.onerror = function(err) {
+                console.warn("SSE connection interrupted, retrying in 3s...");
+                document.getElementById("terminalStatusBadge").textContent = "RECONNECTING...";
+                document.getElementById("terminalStatusBadge").className = "text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono";
+                setTimeout(initLogStream, 3000);
+            };
+        }
+
+        // 2. Fetch Dashboard Statistics
+        async function fetchStats() {
+            try {
+                const res = await fetch("/api/stats");
+                const data = await res.json();
+
+                // Indicator
+                const ind = document.getElementById("statusIndicator");
+                const txt = document.getElementById("statusText");
+                if (data.is_pipeline_running) {
+                    ind.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300";
+                    txt.textContent = "Pipeline Running...";
+                    document.getElementById("btnRunPipeline").disabled = true;
+                    document.getElementById("btnRunPipeline").classList.add("opacity-50", "cursor-not-allowed");
+                } else {
+                    ind.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyber-card border border-cyber-border text-xs text-gray-300";
+                    txt.textContent = "System Ready";
+                    document.getElementById("btnRunPipeline").disabled = false;
+                    document.getElementById("btnRunPipeline").classList.remove("opacity-50", "cursor-not-allowed");
+                }
+
+                // Cards
+                document.getElementById("cardTotalFlows").textContent = data.total_flows;
+                document.getElementById("cardBenignFlows").textContent = data.total_benign;
+                document.getElementById("cardAnomFlows").textContent = data.total_flagged;
+                document.getElementById("cardTPR").textContent = (data.tpr).toFixed(1) + "%";
+                document.getElementById("cardFPR").textContent = (data.fpr).toFixed(1) + "%";
+                document.getElementById("cardBlacklistCount").textContent = data.blacklisted_ips_count;
+
+                // Tiers
+                const rc = data.risk_counts;
+                const totFlagged = data.total_flagged || 1;
+                document.getElementById("tierCountLow").textContent = `${rc.Low} (${((rc.Low / totFlagged)*100).toFixed(1)}%)`;
+                document.getElementById("tierBarLow").style.width = `${((rc.Low / totFlagged)*100)}%`;
+
+                document.getElementById("tierCountMedium").textContent = `${rc.Medium} (${((rc.Medium / totFlagged)*100).toFixed(1)}%)`;
+                document.getElementById("tierBarMedium").style.width = `${((rc.Medium / totFlagged)*100)}%`;
+
+                document.getElementById("tierCountHigh").textContent = `${rc.High} (${((rc.High / totFlagged)*100).toFixed(1)}%)`;
+                document.getElementById("tierBarHigh").style.width = `${((rc.High / totFlagged)*100)}%`;
+
+                document.getElementById("tierCountCritical").textContent = `${rc.Critical} (${((rc.Critical / totFlagged)*100).toFixed(1)}%)`;
+                document.getElementById("tierBarCritical").style.width = `${((rc.Critical / totFlagged)*100)}%`;
+
+                // Update Chart
+                updateActionsChart(data.action_counts);
+
+            } catch (err) {
+                console.error("Error fetching stats:", err);
+            }
+        }
+
+        // 3. Render Actions Doughnut Chart
+        function updateActionsChart(actionCounts) {
+            const ctx = document.getElementById('actionsChart').getContext('2d');
+            const labels = Object.keys(actionCounts);
+            const values = Object.values(actionCounts);
+
+            if (actionsChart) {
+                actionsChart.data.labels = labels;
+                actionsChart.data.datasets[0].data = values;
+                actionsChart.update();
+                return;
+            }
+
+            actionsChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: ['#3b82f6', '#f59e0b', '#f97316', '#ef4444'],
+                        borderColor: '#131c2e',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 10, family: 'ui-sans-serif' }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        // 4. Fetch Attack Logs Table
+        async function fetchLogs() {
+            try {
+                const res = await fetch("/api/logs");
+                const data = await res.json();
+                allLogRecords = data.records || [];
+                document.getElementById("logTableCount").textContent = `${allLogRecords.length} Events`;
+                renderLogsTable(allLogRecords);
+            } catch (err) {
+                console.error("Error fetching logs:", err);
+            }
+        }
+
+        function renderLogsTable(records) {
+            const tbody = document.getElementById("attackLogTableBody");
+            tbody.innerHTML = "";
+
+            if (!records.length) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-gray-500">No threat events logged yet. Run the pipeline to populate.</td></tr>`;
+                return;
+            }
+
+            records.slice(0, 100).forEach(r => {
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-cyber-800/50 transition-colors";
+
+                // Badge colors for risk level
+                let badgeClass = "bg-blue-500/20 text-blue-300 border-blue-500/30";
+                if (r["Risk Level"] === "Critical") badgeClass = "bg-rose-500/20 text-rose-300 border-rose-500/30 font-bold";
+                else if (r["Risk Level"] === "High") badgeClass = "bg-orange-500/20 text-orange-300 border-orange-500/30";
+                else if (r["Risk Level"] === "Medium") badgeClass = "bg-amber-500/20 text-amber-300 border-amber-500/30";
+
+                tr.innerHTML = `
+                    <td class="p-3 text-gray-400 whitespace-nowrap">${r.Timestamp || '-'}</td>
+                    <td class="p-3 font-semibold text-cyan-300 whitespace-nowrap">${r["Source IP"] || '-'}</td>
+                    <td class="p-3 text-gray-200 font-medium whitespace-nowrap">${r["Attack Type"] || '-'}</td>
+                    <td class="p-3 text-gray-300">${r.Confidence || '-'}</td>
+                    <td class="p-3 text-gray-300">${r["History Score"] || '0.0'}</td>
+                    <td class="p-3 font-bold text-white">${parseFloat(r["Risk Score"] || 0).toFixed(1)}</td>
+                    <td class="p-3 whitespace-nowrap">
+                        <span class="px-2 py-0.5 rounded text-[10px] border ${badgeClass}">${r["Risk Level"] || '-'}</span>
+                    </td>
+                    <td class="p-3 text-gray-300 whitespace-nowrap">${r["Action Taken"] || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterLogsTable() {
+            const query = document.getElementById("logSearch").value.toLowerCase();
+            const filtered = allLogRecords.filter(r => 
+                (r["Source IP"] && r["Source IP"].toLowerCase().includes(query)) ||
+                (r["Attack Type"] && r["Attack Type"].toLowerCase().includes(query)) ||
+                (r["Action Taken"] && r["Action Taken"].toLowerCase().includes(query))
+            );
+            renderLogsTable(filtered);
+        }
+
+        // 5. Fetch Blacklist Feed
+        async function fetchBlacklist() {
+            try {
+                const res = await fetch("/api/blacklist");
+                const data = await res.json();
+                const container = document.getElementById("blacklistContainer");
+                document.getElementById("blacklistBadge").textContent = `${data.count} Blocked`;
+
+                if (!data.blacklist || !data.blacklist.length) {
+                    container.innerHTML = `<div class="p-3 text-center text-gray-500 text-xs">Blacklist currently empty.</div>`;
+                    return;
+                }
+
+                container.innerHTML = "";
+                data.blacklist.slice(0, 30).forEach(b => {
+                    const item = document.createElement("div");
+                    item.className = "p-2.5 rounded-lg bg-cyber-900 border border-cyber-border/80 flex items-center justify-between text-xs";
+                    item.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                            <span class="font-mono text-cyan-300 font-semibold">${b.ip}</span>
+                        </div>
+                        <span class="text-[10px] text-gray-500 font-mono">Enforced</span>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (err) {
+                console.error("Error fetching blacklist:", err);
+            }
+        }
+
+        // 6. Action Triggers
+        async function triggerPipeline() {
+            try {
+                const res = await fetch("/api/run-pipeline", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ synthetic: true })
+                });
+                const data = await res.json();
+                fetchStats();
+            } catch (e) {
+                alert("Failed to start pipeline: " + e);
+            }
+        }
+
+        async function triggerEvaluation() {
+            try {
+                const res = await fetch("/api/run-evaluation", { method: "POST" });
+                const data = await res.json();
+                fetchStats();
+                fetchLogs();
+            } catch (e) {
+                alert("Failed to trigger evaluation: " + e);
+            }
+        }
+
+        function clearTerminal() {
+            fetch("/api/clear-logs", { method: "POST" });
+            document.getElementById("terminalBody").innerHTML = `<div class="text-cyan-400">[CONSOLE CLEARED] Waiting for new execution events...</div>`;
+        }
+
+        // Start initialization & recurring pollers
+        window.addEventListener("DOMContentLoaded", () => {
+            initLogStream();
+            fetchStats();
+            fetchLogs();
+            fetchBlacklist();
+
+            // Refresh stats & logs every 4 seconds
+            setInterval(fetchStats, 4000);
+            setInterval(fetchLogs, 5000);
+            setInterval(fetchBlacklist, 8000);
+        });
+    </script>
+</body>
+</html>
+

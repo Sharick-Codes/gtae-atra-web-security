@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints
+data/raw/
+node_modules/
+dashboard/node_modules/
+webapp/node_modules/
+*.bat

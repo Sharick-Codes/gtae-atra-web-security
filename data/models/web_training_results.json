@@ -1,0 +1,78 @@
+{
+  "anomaly_threshold": 0.0005825837142765522,
+  "in_features": 20,
+  "pe_dim": 16,
+  "num_records": 1000,
+  "num_benign": 800,
+  "num_attack": 200,
+  "benign_error_mean": 0.00022223054838832468,
+  "benign_error_std": 0.0002705107908695936,
+  "attack_error_mean": 0.03463194891810417,
+  "attack_error_std": 0.032749541103839874,
+  "metrics": {
+    "name": "ensemble",
+    "tp": 200,
+    "fp": 70,
+    "tn": 730,
+    "fn": 0,
+    "tpr": 1.0,
+    "fpr": 0.0875,
+    "precision": 0.7407,
+    "recall": 1.0,
+    "f1": 0.8511
+  },
+  "per_attack_metrics": {
+    "AbnormalMethod": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "BotScan": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "BruteForce": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "Combined": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "LargePayload": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "PathTraversal": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "RateLimitAbuse": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "SQLInjection": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "SensitiveEndpoint": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    },
+    "XSS": {
+      "total": 20,
+      "detected": 20,
+      "tpr": 1.0
+    }
+  },
+  "model_path": "D:\\IDS-Project\\data\\models\\web_gtae_model.pt",
+  "scaler_path": "D:\\IDS-Project\\data\\models\\web_scaler.joblib"
+}

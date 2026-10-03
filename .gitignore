@@ -1,0 +1,24 @@
+# Environments & Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.env
+
+# Raw massive datasets (keep models only)
+data/raw/
+data/processed/*.pkl
+
+# Dependencies
+node_modules/
+dashboard/node_modules/
+webapp/node_modules/
+
+# OS and Temp files
+cloudflared.exe
+.DS_Store
+Thumbs.db
+*.log

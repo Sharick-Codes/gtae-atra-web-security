@@ -1,0 +1,123 @@
+{
+    "metrics": {
+        "name": "Ensemble Detector",
+        "tp": 1473,
+        "fp": 378,
+        "tn": 4622,
+        "fn": 4095,
+        "tpr": 0.2645,
+        "fpr": 0.0756,
+        "precision": 0.7958,
+        "recall": 0.2645,
+        "f1": 0.3971
+    },
+    "per_attack": {
+        "Bot": {
+            "total": 500,
+            "detected": 26,
+            "tpr": 0.052
+        },
+        "DDoS": {
+            "total": 500,
+            "detected": 271,
+            "tpr": 0.542
+        },
+        "DoS GoldenEye": {
+            "total": 500,
+            "detected": 325,
+            "tpr": 0.65
+        },
+        "DoS Hulk": {
+            "total": 500,
+            "detected": 382,
+            "tpr": 0.764
+        },
+        "DoS Slowhttptest": {
+            "total": 500,
+            "detected": 200,
+            "tpr": 0.4
+        },
+        "DoS slowloris": {
+            "total": 500,
+            "detected": 184,
+            "tpr": 0.368
+        },
+        "FTP-Patator": {
+            "total": 500,
+            "detected": 5,
+            "tpr": 0.01
+        },
+        "Heartbleed": {
+            "total": 11,
+            "detected": 11,
+            "tpr": 1.0
+        },
+        "Infiltration": {
+            "total": 36,
+            "detected": 28,
+            "tpr": 0.7778
+        },
+        "PortScan": {
+            "total": 500,
+            "detected": 33,
+            "tpr": 0.066
+        },
+        "SSH-Patator": {
+            "total": 500,
+            "detected": 7,
+            "tpr": 0.014
+        },
+        "Web Attack - Brute Force": {
+            "total": 500,
+            "detected": 0,
+            "tpr": 0.0
+        },
+        "Web Attack - Sql Injection": {
+            "total": 21,
+            "detected": 0,
+            "tpr": 0.0
+        },
+        "Web Attack - XSS": {
+            "total": 500,
+            "detected": 1,
+            "tpr": 0.002
+        }
+    },
+    "atra_summary": {
+        "total_flows_processed": 10568,
+        "total_flagged": 2180,
+        "risk_level_counts": {
+            "Medium": 1803,
+            "Low": 369,
+            "High": 8
+        },
+        "action_counts": {
+            "Alert Admin": 1803,
+            "Generate Log": 369,
+            "Blacklist IP": 8
+        },
+        "top_5_repeat_offender_ips": [
+            {
+                "ip": "BENIGN_src_6",
+                "count": 15
+            },
+            {
+                "ip": "BENIGN_src_105",
+                "count": 15
+            },
+            {
+                "ip": "BENIGN_src_5",
+                "count": 15
+            },
+            {
+                "ip": "BENIGN_src_10",
+                "count": 15
+            },
+            {
+                "ip": "DoS_Slowhttptest_src_15",
+                "count": 15
+            }
+        ]
+    },
+    "run_timestamp": "2026-09-27T19:23:00.886600"
+}

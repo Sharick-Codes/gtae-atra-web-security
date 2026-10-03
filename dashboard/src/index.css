@@ -1,0 +1,100 @@
+/* =====================================================
+   GTAE-ATRA Security Dashboard - Global Styles
+   ===================================================== */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary:   #0a0a14;
+  --bg-secondary: #111121;
+  --bg-card:      #161628;
+  --bg-card-hover:#1e1e35;
+  --border:       #2a2a45;
+  --border-glow:  #4040a0;
+  --text-primary: #e8e8f0;
+  --text-muted:   #7878a0;
+  --accent-blue:  #60a5fa;
+  --accent-purple:#a78bfa;
+  --accent-green: #34d399;
+  --accent-yellow:#fbbf24;
+  --accent-red:   #f87171;
+  --accent-orange:#fb923c;
+  --glow-blue:    0 0 20px rgba(96, 165, 250, 0.15);
+  --glow-red:     0 0 20px rgba(248, 113, 113, 0.2);
+  --glow-green:   0 0 20px rgba(52, 211, 153, 0.15);
+  --radius-sm:    6px;
+  --radius-md:    12px;
+  --radius-lg:    18px;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, pre, .mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 3px; }
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  border-color: var(--border-glow);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.badge-low      { background: rgba(52,211,153,0.15); color: var(--accent-green);  border: 1px solid rgba(52,211,153,0.3); }
+.badge-medium   { background: rgba(251,191,36,0.15); color: var(--accent-yellow); border: 1px solid rgba(251,191,36,0.3); }
+.badge-high     { background: rgba(251,146,60,0.15); color: var(--accent-orange); border: 1px solid rgba(251,146,60,0.3); }
+.badge-critical { background: rgba(248,113,113,0.15); color: var(--accent-red);   border: 1px solid rgba(248,113,113,0.3); }
+.badge-allow    { background: rgba(52,211,153,0.1);  color: var(--accent-green);  border: 1px solid rgba(52,211,153,0.2); }
+.badge-monitor  { background: rgba(96,165,250,0.1);  color: var(--accent-blue);   border: 1px solid rgba(96,165,250,0.2); }
+.badge-alert    { background: rgba(251,191,36,0.1);  color: var(--accent-yellow); border: 1px solid rgba(251,191,36,0.2); }
+.badge-block    { background: rgba(248,113,113,0.1); color: var(--accent-red);    border: 1px solid rgba(248,113,113,0.2); }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(96,165,250,0.3); }
+  50%       { box-shadow: 0 0 20px rgba(96,165,250,0.6); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.4s ease forwards; }
+.animate-slide-in   { animation: slideIn 0.3s ease forwards; }
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.active  { background: var(--accent-green); animation: pulse-glow 2s infinite; }
+.status-dot.offline { background: var(--accent-red); }
+.status-dot.warning { background: var(--accent-yellow); }

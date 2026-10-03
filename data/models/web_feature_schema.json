@@ -1,0 +1,26 @@
+{
+  "in_features": 20,
+  "pe_dim": 16,
+  "feature_names": [
+    "request_rate",
+    "unique_endpoint_count",
+    "failed_login_count",
+    "status_4xx_rate",
+    "status_5xx_rate",
+    "avg_response_time_ms",
+    "avg_path_length",
+    "avg_query_length",
+    "post_ratio",
+    "get_ratio",
+    "sensitive_endpoint_count",
+    "repeated_endpoint_ratio",
+    "suspicious_pattern_count",
+    "abnormal_method_count",
+    "avg_request_size",
+    "max_request_rate_burst",
+    "error_404_count",
+    "error_403_count",
+    "user_agent_entropy",
+    "req_per_minute"
+  ]
+}
