@@ -20,9 +20,13 @@ import logging
 import logging.handlers
 import os
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")   # Headless -- safe in server/subprocess environments
-import matplotlib.pyplot as plt
+try:
+    import matplotlib
+    matplotlib.use("Agg")   # Headless -- safe in server/subprocess environments
+    import matplotlib.pyplot as plt
+except ImportError:
+    matplotlib = None
+    plt = None
 from pathlib import Path
 from datetime import datetime
 from config import LOGGING_CONFIG, EVALUATION_CONFIG
