@@ -488,6 +488,21 @@ def api_traffic_stats():
     return jsonify(_build_stats_payload())
 
 
+@app.route("/", methods=["GET", "HEAD"])
+def root_index():
+    return jsonify({
+        "status": "online",
+        "service": "GTAE-ATRA Cloud Security Engine",
+        "engine_ready": _engine_ready,
+        "endpoints": {
+            "health": "/api/health",
+            "stats": "/api/security/stats",
+            "telemetry": "/telemetry (POST)",
+            "blocklist": "/api/blocklist/check?ip=<ip>"
+        }
+    }), 200
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({
