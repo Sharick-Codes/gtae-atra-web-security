@@ -312,12 +312,21 @@ def receive_telemetry():
     site_id   = data.get("site_id", "default")
     requests_batch = data.get("requests", [])
 
-    # Filter out internal telemetry / health / blocklist pings to prevent feedback loops
+    # Filter out internal telemetry / health / blocklist pings / external services to prevent false alarms
     clean_batch = []
     for r in requests_batch:
-        path = str(r.get("path", "") or r.get("endpoint", "")).lower()
-        if any(ign in path for ign in ("/telemetry", "/api/blocklist", "ipify", "/api/security")):
+        raw_p = str(r.get("path", "") or r.get("endpoint", ""))
+        path = raw_p.lower()
+        if any(ign in path for ign in ("/telemetry", "/api/blocklist", "ipify", "/api/security", "firestore", "googleapis.com")):
             continue
+        # Clean up full URLs to relative paths if any slipped through
+        if "://" in raw_p:
+            try:
+                from urllib.parse import urlparse
+                r["path"] = urlparse(raw_p).path or "/"
+                r["endpoint"] = r["path"]
+            except Exception:
+                pass
         clean_batch.append(r)
     requests_batch = clean_batch
 
