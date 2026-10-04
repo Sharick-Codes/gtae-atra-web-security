@@ -191,28 +191,46 @@ class WebInferenceEngine:
         predictions  = predict_all(self.detectors, scaled_emb)
 
         # ── Concrete Threat Evidence Corroboration ────────────────────
+        # Thresholds are intentionally conservative to avoid false-positives
+        # from legitimate users interacting with AI (large POSTs, streaming, etc.)
         feat_dict = get_feature_dict(feats)
-        has_sqli_evidence      = (feat_dict.get("suspicious_pattern_count", 0.0) > 0.0)
-        has_brute_evidence     = (feat_dict.get("failed_login_count", 0.0) > 0.0)
-        has_rate_evidence      = (feat_dict.get("request_rate", 0.0) > 0.25 or feat_dict.get("max_request_rate_burst", 0.0) > 0.15)
-        has_sensitive_evidence = (feat_dict.get("sensitive_endpoint_count", 0.0) > 0.0)
-        has_method_evidence    = (feat_dict.get("abnormal_method_count", 0.0) > 0.0)
-        has_error_evidence     = (feat_dict.get("status_4xx_rate", 0.0) > 0.5)
-        has_scanning_evidence  = (feat_dict.get("error_404_count", 0.0) > 0.05 or feat_dict.get("error_403_count", 0.0) > 0.05)
 
-        has_threat_evidence = any([
+        # SQLi/XSS must be explicit – any match fires
+        has_sqli_evidence      = (feat_dict.get("suspicious_pattern_count", 0.0) > 0.0)
+        # Brute force: only explicit failed logins count
+        has_brute_evidence     = (feat_dict.get("failed_login_count", 0.0) > 0.0)
+        # Rate abuse: very high rate (>0.50 normalized = 150 req/min) OR extreme burst (>0.40 = 40 req/5s)
+        has_rate_evidence      = (
+            feat_dict.get("request_rate", 0.0) > 0.50 or
+            feat_dict.get("max_request_rate_burst", 0.0) > 0.40
+        )
+        # Sensitive endpoint: must visit 3+ sensitive endpoints in one window
+        has_sensitive_evidence = (feat_dict.get("sensitive_endpoint_count", 0.0) > 0.03)
+        # Abnormal HTTP methods (e.g. TRACE, CONNECT, custom junk)
+        has_method_evidence    = (feat_dict.get("abnormal_method_count", 0.0) > 0.0)
+        # High 4xx: >70% of requests are client errors (not just an odd 404)
+        has_error_evidence     = (feat_dict.get("status_4xx_rate", 0.0) > 0.70)
+        # Scanning: sustained 404/403 storm – >15% each
+        has_scanning_evidence  = (
+            feat_dict.get("error_404_count", 0.0) > 0.15 and
+            feat_dict.get("error_403_count", 0.0) > 0.15
+        )
+
+        threat_signals = [
             has_sqli_evidence, has_brute_evidence, has_rate_evidence,
             has_sensitive_evidence, has_method_evidence, has_error_evidence,
             has_scanning_evidence
-        ])
+        ]
+        # Require ≥2 independent threat signals for anomaly (prevents single-feature FPs)
+        has_threat_evidence = sum(threat_signals) >= 2 or has_sqli_evidence or has_brute_evidence
 
         # Anomaly requires both ML anomaly signal AND actual threat evidence
-        is_ml_anomaly = bool(predictions["ensemble"][0] == 1) or (reconstruction_error > self.anomaly_threshold * 1.5)
+        is_ml_anomaly = bool(predictions["ensemble"][0] == 1) or (reconstruction_error > self.anomaly_threshold * 2.0)
         is_anomaly    = bool(is_ml_anomaly and has_threat_evidence)
 
         # Normal traffic without threat indicators stays safely in normal range
         if not is_anomaly:
-            anomaly_score = min(anomaly_score * 0.35, 25.0)
+            anomaly_score = min(anomaly_score * 0.25, 20.0)
 
         t_feature_done = time.monotonic()
 

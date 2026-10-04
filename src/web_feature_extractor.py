@@ -50,13 +50,14 @@ SUSPICIOUS_PATTERNS = [re.compile(p, re.IGNORECASE)
 NORMAL_METHODS = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"}
 
 # Normalization bounds calibrated on benign traffic ranges
+# AI chat apps have inherently large payloads and high latency -- bounds account for this
 _RAW_BOUNDS = {
     "request_rate":             (0,   300),
     "unique_endpoint_count":    (0,   50),
     "failed_login_count":       (0,   100),
     "status_4xx_rate":          (0,   1.0),
     "status_5xx_rate":          (0,   1.0),
-    "avg_response_time_ms":     (0,   30_000),
+    "avg_response_time_ms":     (0,   60_000),   # AI responses can be slow (up to 60s)
     "avg_path_length":          (0,   200),
     "avg_query_length":         (0,   500),
     "post_ratio":               (0,   1.0),
@@ -65,7 +66,7 @@ _RAW_BOUNDS = {
     "repeated_endpoint_ratio":  (0,   1.0),
     "suspicious_pattern_count": (0,   50),
     "abnormal_method_count":    (0,   30),
-    "avg_request_size":         (0,   2_000_000),
+    "avg_request_size":         (0,   10_000_000),  # PDF text can be very large
     "max_request_rate_burst":   (0,   100),
     "error_404_count":          (0,   200),
     "error_403_count":          (0,   200),
