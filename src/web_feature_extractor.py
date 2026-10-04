@@ -242,7 +242,6 @@ def build_reason(features: np.ndarray, threshold: float = 0.4) -> str:
         "request_rate":             "High request rate",
         "failed_login_count":       "Multiple failed login attempts",
         "status_4xx_rate":          "High 4xx error rate",
-        "status_5xx_rate":          "High 5xx error rate",
         "sensitive_endpoint_count": "Repeated access to sensitive endpoints",
         "suspicious_pattern_count": "Suspicious URL patterns detected (SQLi/XSS/traversal)",
         "abnormal_method_count":    "Unusual HTTP methods",

@@ -194,11 +194,11 @@ class WebInferenceEngine:
         feat_dict = get_feature_dict(feats)
         has_sqli_evidence      = (feat_dict.get("suspicious_pattern_count", 0.0) > 0.0)
         has_brute_evidence     = (feat_dict.get("failed_login_count", 0.0) > 0.0)
-        has_rate_evidence      = (feat_dict.get("request_rate", 0.0) > 0.15 or feat_dict.get("max_request_rate_burst", 0.0) > 0.08)
+        has_rate_evidence      = (feat_dict.get("request_rate", 0.0) > 0.25 or feat_dict.get("max_request_rate_burst", 0.0) > 0.15)
         has_sensitive_evidence = (feat_dict.get("sensitive_endpoint_count", 0.0) > 0.0)
         has_method_evidence    = (feat_dict.get("abnormal_method_count", 0.0) > 0.0)
-        has_error_evidence     = (feat_dict.get("status_4xx_rate", 0.0) > 0.4 or feat_dict.get("status_5xx_rate", 0.0) > 0.4)
-        has_scanning_evidence  = (feat_dict.get("error_404_count", 0.0) > 0.02 or feat_dict.get("error_403_count", 0.0) > 0.02)
+        has_error_evidence     = (feat_dict.get("status_4xx_rate", 0.0) > 0.5)
+        has_scanning_evidence  = (feat_dict.get("error_404_count", 0.0) > 0.05 or feat_dict.get("error_403_count", 0.0) > 0.05)
 
         has_threat_evidence = any([
             has_sqli_evidence, has_brute_evidence, has_rate_evidence,
