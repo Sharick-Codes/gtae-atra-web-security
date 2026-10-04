@@ -312,6 +312,15 @@ def receive_telemetry():
     site_id   = data.get("site_id", "default")
     requests_batch = data.get("requests", [])
 
+    # Filter out internal telemetry / health / blocklist pings to prevent feedback loops
+    clean_batch = []
+    for r in requests_batch:
+        path = str(r.get("path", "") or r.get("endpoint", "")).lower()
+        if any(ign in path for ign in ("/telemetry", "/api/blocklist", "ipify", "/api/security")):
+            continue
+        clean_batch.append(r)
+    requests_batch = clean_batch
+
     if not requests_batch:
         return jsonify({"status": "ok", "skipped": True}), 200
 
@@ -525,6 +534,48 @@ def list_blocklist():
     """List all currently blocked IPs."""
     with _stats_lock:
         return jsonify({"blocked_ips": list(_stats["blocked_ips"]), "count": len(_stats["blocked_ips"])})
+
+
+@app.route("/api/blocklist/unblock", methods=["GET", "POST"])
+def unblock_ip():
+    """Unblock a specific IP address."""
+    ip = request.args.get("ip", "").strip() or (request.get_json(silent=True) or {}).get("ip", "").strip()
+    if not ip:
+        return jsonify({"error": "Missing IP parameter"}), 400
+    with _stats_lock:
+        if ip in _stats["blocked_ips"]:
+            _stats["blocked_ips"].remove(ip)
+        for s_stats in _site_stats.values():
+            if ip in s_stats["blocked_ips"]:
+                s_stats["blocked_ips"].remove(ip)
+    with _window_lock:
+        if ip in _ip_windows:
+            _ip_windows[ip].clear()
+    socketio.emit("stats_update", _build_stats_payload())
+    return jsonify({"status": "ok", "unblocked": ip, "message": f"IP {ip} unblocked successfully"})
+
+
+@app.route("/api/blocklist/clear", methods=["GET", "POST"])
+def clear_blocklist():
+    """Clear all blocked IPs and reset event stats."""
+    with _stats_lock:
+        _stats["blocked_ips"].clear()
+        _stats["total_blocked"] = 0
+        _stats["total_alerts"] = 0
+        _stats["total_requests"] = 0
+        _stats["total_normal"] = 0
+        _stats["last_events"] = []
+        _stats["anomaly_scores"] = []
+        for s_stats in _site_stats.values():
+            s_stats["blocked_ips"].clear()
+            s_stats["total_blocked"] = 0
+            s_stats["total_alerts"] = 0
+            s_stats["total_requests"] = 0
+            s_stats["total_normal"] = 0
+    with _window_lock:
+        _ip_windows.clear()
+    socketio.emit("stats_update", _build_stats_payload())
+    return jsonify({"status": "ok", "message": "All blocked IPs and stats cleared successfully"})
 
 
 
