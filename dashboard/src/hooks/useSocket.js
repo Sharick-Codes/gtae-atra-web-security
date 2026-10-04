@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 
-const MONITOR_URL = process.env.REACT_APP_MONITOR_URL || 'http://127.0.0.1:8765';
+export const MONITOR_URL = process.env.REACT_APP_MONITOR_URL || 'http://127.0.0.1:8765';
 
 export function useSecuritySocket() {
   const [stats, setStats]   = useState(null);

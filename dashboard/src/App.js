@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { useSecuritySocket } from './hooks/useSocket';
+import { useSecuritySocket, MONITOR_URL } from './hooks/useSocket';
 import './App.css';
 
 // ============================================================
@@ -163,6 +163,23 @@ export default function App() {
     });
     return Array.from(ips);
   }, [filteredAlerts, selectedSite, stats]);
+
+  // Unblock handlers
+  const handleUnblock = async (ip) => {
+    try {
+      await fetch(`${MONITOR_URL}/api/blocklist/unblock?ip=${encodeURIComponent(ip)}`, { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to unblock IP:', err);
+    }
+  };
+
+  const handleClearAllBlocks = async () => {
+    try {
+      await fetch(`${MONITOR_URL}/api/blocklist/clear`, { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to clear blocklist:', err);
+    }
+  };
 
   // Filtered metrics
   const total = selectedSite === 'all' ? (stats?.total_requests || 0) : filteredAlerts.length;
@@ -435,16 +452,56 @@ export default function App() {
         {/* ================ BLOCKED TAB ================ */}
         {tab === 'blocked' && (
           <div className="card">
-            <h3 className="chart-title" style={{ marginBottom:'1rem' }}>
-              Blocked IPs {selectedSite !== 'all' && `(${selectedSite})`}
-              <span className="badge badge-block" style={{ marginLeft:'0.75rem' }}>
-                {filteredBlockedIPs.length}
-              </span>
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <h3 className="chart-title" style={{ margin: 0 }}>
+                Blocked IPs {selectedSite !== 'all' && `(${selectedSite})`}
+                <span className="badge badge-block" style={{ marginLeft:'0.75rem' }}>
+                  {filteredBlockedIPs.length}
+                </span>
+              </h3>
+              {filteredBlockedIPs.length > 0 && (
+                <button
+                  onClick={handleClearAllBlocks}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    color: '#f87171',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Unblock all blocked IPs across the system"
+                >
+                  🔓 Unblock All IPs
+                </button>
+              )}
+            </div>
+
             {filteredBlockedIPs.map((ip, i) => (
-              <div key={i} className="blocked-row animate-slide-in" style={{ animationDelay: `${i*0.05}s` }}>
+              <div key={i} className="blocked-row animate-slide-in" style={{ animationDelay: `${i*0.05}s`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="mono" style={{ color:'#f87171' }}>🚫 {ip}</span>
-                <span className="badge badge-block">BLOCKED</span>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <span className="badge badge-block">BLOCKED</span>
+                  <button
+                    onClick={() => handleUnblock(ip)}
+                    style={{
+                      background: 'rgba(52, 211, 153, 0.15)',
+                      color: '#34d399',
+                      border: '1px solid rgba(52, 211, 153, 0.3)',
+                      padding: '0.25rem 0.65rem',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      fontWeight: 600
+                    }}
+                    title={`Unblock IP ${ip}`}
+                  >
+                    🔓 Unblock
+                  </button>
+                </div>
               </div>
             ))}
             {filteredBlockedIPs.length === 0 && (
