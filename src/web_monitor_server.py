@@ -391,10 +391,12 @@ def _update_stats_and_emit(event: dict, source_ip: str):
             _stats["total_alerts"] += 1
             s_stats["total_alerts"] += 1
             if event["action"] in ("BLOCK", "SIMULATED_BLOCK"):
-                _stats["total_blocked"] += 1
-                _stats["blocked_ips"].add(source_ip)
-                s_stats["total_blocked"] += 1
-                s_stats["blocked_ips"].add(source_ip)
+                # NEVER block localhost loopback IPs (development protection)
+                if source_ip not in ("127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"):
+                    _stats["total_blocked"] += 1
+                    _stats["blocked_ips"].add(source_ip)
+                    s_stats["total_blocked"] += 1
+                    s_stats["blocked_ips"].add(source_ip)
         else:
             _stats["total_normal"] += 1
             s_stats["total_normal"] += 1
@@ -524,6 +526,8 @@ def api_blocked():
 def check_blocklist():
     """Checked by security middleware on every incoming request for real-time enforcement."""
     ip = request.args.get("ip", "").strip()
+    if ip in ("127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"):
+        return jsonify({"ip": ip, "blocked": False})
     with _stats_lock:
         is_blocked = ip in _stats["blocked_ips"]
     return jsonify({"ip": ip, "blocked": is_blocked})
