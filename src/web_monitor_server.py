@@ -28,6 +28,12 @@ from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
 
+try:
+    import requests as _requests_lib
+    _PROXY_AVAILABLE = True
+except ImportError:
+    _PROXY_AVAILABLE = False
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from flask import Flask, request, jsonify
@@ -609,6 +615,231 @@ def clear_blocklist():
     return jsonify({"status": "ok", "message": "All blocked IPs and stats cleared successfully"})
 
 
+# ============================================================
+# REVERSE PROXY LAYER
+# Allows monitoring ANY website with ZERO code changes.
+# Developer just registers their site + changes DNS CNAME.
+# ============================================================
+
+# Site registry: site_id -> { "origin": "https://real-server.com", "site_id": "..." }
+_SITE_REGISTRY_PATH = Path(LOGS_DIR) / "proxy_sites.json"
+_site_registry: dict = {}
+_registry_lock = threading.Lock()
+
+
+def _load_site_registry():
+    """Load registered proxy sites from disk."""
+    global _site_registry
+    if _SITE_REGISTRY_PATH.exists():
+        try:
+            with open(_SITE_REGISTRY_PATH, encoding="utf-8") as f:
+                _site_registry = json.load(f)
+            logger.info(f"Loaded {len(_site_registry)} proxy site(s) from registry.")
+        except Exception as exc:
+            logger.warning(f"Could not load site registry: {exc}")
+            _site_registry = {}
+
+
+def _save_site_registry():
+    """Persist site registry to disk."""
+    try:
+        _SITE_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(_SITE_REGISTRY_PATH, "w", encoding="utf-8") as f:
+            json.dump(_site_registry, f, indent=2)
+    except Exception as exc:
+        logger.warning(f"Could not save site registry: {exc}")
+
+
+@app.route("/api/proxy/register", methods=["POST"])
+def register_proxy_site():
+    """
+    Register a website for zero-code-change reverse proxy monitoring.
+
+    Body: { "site_id": "my-site", "origin": "https://my-real-server.com" }
+
+    After registration:
+      Developer changes their DNS CNAME → our server IP.
+      All traffic flows through us → analyzed → forwarded.
+      Their code: UNTOUCHED. Their server: UNTOUCHED.
+    """
+    data = request.get_json(silent=True) or {}
+    site_id = str(data.get("site_id", "")).strip()
+    origin  = str(data.get("origin",  "")).strip().rstrip("/")
+
+    if not site_id or not origin:
+        return jsonify({"error": "site_id and origin are required"}), 400
+    if not origin.startswith("http"):
+        return jsonify({"error": "origin must start with http:// or https://"}), 400
+
+    with _registry_lock:
+        _site_registry[site_id] = {
+            "site_id":    site_id,
+            "origin":     origin,
+            "registered": datetime.now().isoformat(),
+        }
+        _save_site_registry()
+
+    logger.info(f"Proxy site registered: {site_id} → {origin}")
+    return jsonify({
+        "status":   "ok",
+        "site_id":  site_id,
+        "origin":   origin,
+        "message":  (
+            f"Site registered! Now change your DNS CNAME to point to this server. "
+            f"All traffic to your domain will be analyzed and forwarded to {origin}."
+        ),
+        "next_step": "Change DNS: your-domain.com CNAME → this-server-ip"
+    }), 201
+
+
+@app.route("/api/proxy/sites", methods=["GET"])
+def list_proxy_sites():
+    """List all registered proxy sites."""
+    with _registry_lock:
+        return jsonify({"sites": list(_site_registry.values()), "count": len(_site_registry)})
+
+
+@app.route("/api/proxy/unregister/<site_id>", methods=["DELETE"])
+def unregister_proxy_site(site_id: str):
+    """Remove a site from proxy monitoring."""
+    with _registry_lock:
+        removed = _site_registry.pop(site_id, None)
+        if removed:
+            _save_site_registry()
+    if removed:
+        return jsonify({"status": "ok", "removed": site_id})
+    return jsonify({"error": "Site not found"}), 404
+
+
+@app.route("/proxy/<site_id>", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+@app.route("/proxy/<site_id>/", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+@app.route("/proxy/<site_id>/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+def reverse_proxy(site_id: str, subpath: str = ""):
+    """
+    Reverse proxy endpoint.
+
+    Flow:
+      Visitor → our-server.com/proxy/<site_id>/path
+              → IDS analysis (IP check, telemetry)
+              → Forward to registered origin
+              → Return response to visitor
+
+    Developer's server: completely untouched.
+    Developer's code:   completely untouched.
+    """
+    if not _PROXY_AVAILABLE:
+        return jsonify({"error": "Proxy unavailable: 'requests' library not installed"}), 503
+
+    with _registry_lock:
+        site = _site_registry.get(site_id)
+
+    if not site:
+        return jsonify({
+            "error": f"Site '{site_id}' not registered.",
+            "hint":  "POST /api/proxy/register with site_id + origin to register."
+        }), 404
+
+    origin = site["origin"]
+    source_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+
+    # ── Block check ────────────────────────────────────────────
+    with _stats_lock:
+        if source_ip in _stats["blocked_ips"]:
+            return jsonify({
+                "error":   "Forbidden",
+                "message": "Your IP is blocked by GTAE-ATRA Security Engine.",
+                "code":    "GTAE_ATRA_BLOCKED",
+            }), 403
+
+    # ── Build forward URL ──────────────────────────────────────
+    path = "/" + subpath if subpath else "/"
+    query = request.query_string.decode("utf-8")
+    target_url = f"{origin}{path}" + (f"?{query}" if query else "")
+
+    # ── Forward request ────────────────────────────────────────
+    start_ms = time.time() * 1000
+    try:
+        # Strip hop-by-hop headers
+        forward_headers = {
+            k: v for k, v in request.headers
+            if k.lower() not in ("host", "connection", "transfer-encoding")
+        }
+        forward_headers["X-Forwarded-For"] = source_ip
+        forward_headers["X-Forwarded-Host"] = request.host
+        forward_headers["X-GTAE-ATRA-Proxy"] = "1"
+
+        resp = _requests_lib.request(
+            method  = request.method,
+            url     = target_url,
+            headers = forward_headers,
+            data    = request.get_data(),
+            timeout = 30,
+            allow_redirects = False,
+            stream  = False,
+        )
+        latency_ms = time.time() * 1000 - start_ms
+
+    except Exception as exc:
+        logger.error(f"[Proxy] Forward failed for {site_id}: {exc}")
+        return jsonify({"error": "Upstream unreachable", "detail": str(exc)}), 502
+
+    # ── Telemetry: analyze this request ───────────────────────
+    record = {
+        "timestamp_ms":    int(start_ms),
+        "method":          request.method,
+        "path":            path,
+        "query":           query,
+        "status":          resp.status_code,
+        "status_code":     resp.status_code,
+        "response_time_ms":round(latency_ms, 1),
+        "request_size":    int(request.headers.get("Content-Length", 0) or 0),
+        "response_size":   int(resp.headers.get("Content-Length", 0) or 0),
+        "user_agent":      request.headers.get("User-Agent", "")[:200],
+    }
+
+    with _window_lock:
+        _ip_windows[source_ip].append(record)
+        window_s  = WEB_CONFIG["window_seconds"]
+        cutoff_ms = (time.time() - window_s) * 1000
+        _ip_windows[source_ip] = [
+            r for r in _ip_windows[source_ip]
+            if float(r.get("timestamp_ms", 0)) >= cutoff_ms
+        ]
+        current_window = list(_ip_windows[source_ip])
+
+    with _stats_lock:
+        _stats["total_requests"] += 1
+
+    # Run inference if window is ready
+    if _engine_ready and len(current_window) >= WEB_CONFIG["min_requests_per_window"]:
+        try:
+            event = _engine.infer(source_ip, current_window, site_id=site_id)
+            _update_stats_and_emit(event, source_ip)
+            # Block if engine says so
+            if event.get("action") in ("BLOCK", "SIMULATED_BLOCK"):
+                with _stats_lock:
+                    if source_ip not in ("127.0.0.1", "::1"):
+                        _stats["blocked_ips"].add(source_ip)
+        except Exception as exc:
+            logger.error(f"[Proxy] Inference error: {exc}")
+
+    # ── Return upstream response to visitor ───────────────────
+    excluded_resp_headers = {"transfer-encoding", "connection", "content-encoding"}
+    response_headers = {
+        k: v for k, v in resp.headers.items()
+        if k.lower() not in excluded_resp_headers
+    }
+
+    from flask import Response
+    return Response(
+        response = resp.content,
+        status   = resp.status_code,
+        headers  = response_headers,
+    )
+
+
+
+
 
 @app.route("/api/security/anomaly", methods=["GET"])
 def api_anomaly():
@@ -686,6 +917,7 @@ def on_disconnect():
 
 def _load_engine():
     global _engine, _engine_ready, _anomaly_threshold
+    _load_site_registry()
     try:
         _engine = WebInferenceEngine()
         _anomaly_threshold = _engine.anomaly_threshold
