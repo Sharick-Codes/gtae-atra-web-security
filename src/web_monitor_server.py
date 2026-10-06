@@ -655,19 +655,25 @@ def register_proxy_site():
     """
     Register a website for zero-code-change reverse proxy monitoring.
 
-    Body: { "site_id": "my-site", "origin": "https://my-real-server.com" }
+    Body: {
+      "site_id": "my-site",
+      "origin":  "https://my-real-server.com",
+      "domain":  "my-site.com"          ← optional: friend's real domain
+    }
 
     After registration:
-      Developer changes their DNS CNAME → our server IP.
-      All traffic flows through us → analyzed → forwarded.
+      Friend changes DNS CNAME: their-domain.com → this server
+      Users visit their-domain.com → flows through our IDS → forwarded to origin
       Their code: UNTOUCHED. Their server: UNTOUCHED.
     """
     data = request.get_json(silent=True) or {}
     site_id = str(data.get("site_id", "")).strip()
     origin  = str(data.get("origin",  "")).strip().rstrip("/")
+    domain  = str(data.get("domain",  "")).strip().lower()   # e.g. "john-site.com"
 
     if not site_id or not origin:
         return jsonify({"error": "site_id and origin are required"}), 400
+
     if not origin.startswith("http"):
         return jsonify({"error": "origin must start with http:// or https://"}), 400
 
@@ -675,20 +681,29 @@ def register_proxy_site():
         _site_registry[site_id] = {
             "site_id":    site_id,
             "origin":     origin,
+            "domain":     domain,   # friend's real domain e.g. "john-site.com"
             "registered": datetime.now().isoformat(),
         }
         _save_site_registry()
 
-    logger.info(f"Proxy site registered: {site_id} → {origin}")
+    logger.info(f"Proxy site registered: {site_id} → {origin} (domain: {domain or 'none'})")
     return jsonify({
         "status":   "ok",
         "site_id":  site_id,
         "origin":   origin,
+        "domain":   domain or None,
         "message":  (
-            f"Site registered! Now change your DNS CNAME to point to this server. "
-            f"All traffic to your domain will be analyzed and forwarded to {origin}."
+            f"Site registered! "
+            + (f"Change DNS: {domain} CNAME → gtae-atra-security.onrender.com" if domain
+               else f"Use proxy URL: /proxy/{site_id}/")
         ),
-        "next_step": "Change DNS: your-domain.com CNAME → this-server-ip"
+        "proxy_url": f"https://gtae-atra-security.onrender.com/proxy/{site_id}/",
+        "dns_setup": {
+            "type":  "CNAME",
+            "name":  domain or "your-domain.com",
+            "value": "gtae-atra-security.onrender.com",
+            "note":  "Also add domain in Render dashboard for SSL support"
+        } if domain else None
     }), 201
 
 
@@ -709,6 +724,20 @@ def unregister_proxy_site(site_id: str):
     if removed:
         return jsonify({"status": "ok", "removed": site_id})
     return jsonify({"error": "Site not found"}), 404
+
+
+def _find_site_by_host(host: str) -> dict | None:
+    """
+    Find registered site by incoming Host header.
+    Used for domain-based routing (friend's domain DNS → our server).
+    """
+    host_clean = host.split(":")[0].lower().strip()  # strip port
+    with _registry_lock:
+        for site in _site_registry.values():
+            registered_domain = (site.get("domain") or "").lower().strip()
+            if registered_domain and registered_domain == host_clean:
+                return site
+    return None
 
 
 @app.route("/proxy/<site_id>", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
@@ -837,6 +866,109 @@ def reverse_proxy(site_id: str, subpath: str = ""):
         headers  = response_headers,
     )
 
+
+# ── Host-header based catch-all (Domain DNS approach) ─────────────────────────
+# When friend's domain DNS points to our server:
+#   User visits: john-site.com/about
+#   Host header: john-site.com
+#   We look up "john-site.com" in registry → find origin → forward
+#   User sees normal content, never knows about proxy
+@app.route("/<path:subpath>", methods=["GET","POST","PUT","DELETE","PATCH","HEAD","OPTIONS"])
+@app.route("/", methods=["GET","POST","PUT","DELETE","PATCH","HEAD","OPTIONS"])
+def host_based_proxy(subpath: str = ""):
+    """
+    Catch-all route for domain-based proxying.
+    Only activates when the Host header matches a registered domain.
+    All GTAE-ATRA internal API paths (/api/, /telemetry, /proxy/) take priority
+    and are handled by their own routes first.
+    """
+    host = request.headers.get("Host", "")
+    site = _find_site_by_host(host)
+
+    # Not a registered domain → show normal server info (don't break existing routes)
+    if not site:
+        return jsonify({
+            "status":  "online",
+            "service": "GTAE-ATRA Cloud Security Engine",
+            "hint":    "To monitor your site, POST /api/proxy/register"
+        }), 200
+
+    # Found registered domain → proxy the request
+    if not _PROXY_AVAILABLE:
+        return jsonify({"error": "Proxy unavailable"}), 503
+
+    origin    = site["origin"]
+    site_id   = site["site_id"]
+    source_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+
+    # Block check
+    with _stats_lock:
+        if source_ip in _stats["blocked_ips"]:
+            return jsonify({
+                "error":   "Forbidden",
+                "message": "Your IP is blocked by GTAE-ATRA Security Engine.",
+                "code":    "GTAE_ATRA_BLOCKED",
+            }), 403
+
+    path       = "/" + subpath if subpath else "/"
+    query      = request.query_string.decode("utf-8")
+    target_url = f"{origin}{path}" + (f"?{query}" if query else "")
+
+    start_ms = time.time() * 1000
+    try:
+        fwd_headers = {
+            k: v for k, v in request.headers
+            if k.lower() not in ("host", "connection", "transfer-encoding")
+        }
+        fwd_headers["X-Forwarded-For"]   = source_ip
+        fwd_headers["X-Forwarded-Host"]  = host
+        fwd_headers["X-GTAE-ATRA-Proxy"] = "1"
+
+        resp = _requests_lib.request(
+            method=request.method, url=target_url,
+            headers=fwd_headers, data=request.get_data(),
+            timeout=30, allow_redirects=False, stream=False,
+        )
+        latency_ms = time.time() * 1000 - start_ms
+    except Exception as exc:
+        logger.error(f"[HostProxy] Forward failed: {exc}")
+        return jsonify({"error": "Upstream unreachable"}), 502
+
+    # Telemetry
+    record = {
+        "timestamp_ms": int(start_ms), "method": request.method,
+        "path": path, "query": query,
+        "status": resp.status_code, "status_code": resp.status_code,
+        "response_time_ms": round(latency_ms, 1),
+        "request_size": int(request.headers.get("Content-Length", 0) or 0),
+        "response_size": int(resp.headers.get("Content-Length", 0) or 0),
+        "user_agent": request.headers.get("User-Agent", "")[:200],
+    }
+    with _window_lock:
+        _ip_windows[source_ip].append(record)
+        cutoff_ms = (time.time() - WEB_CONFIG["window_seconds"]) * 1000
+        _ip_windows[source_ip] = [r for r in _ip_windows[source_ip]
+                                   if float(r.get("timestamp_ms", 0)) >= cutoff_ms]
+        current_window = list(_ip_windows[source_ip])
+
+    with _stats_lock:
+        _stats["total_requests"] += 1
+
+    if _engine_ready and len(current_window) >= WEB_CONFIG["min_requests_per_window"]:
+        try:
+            event = _engine.infer(source_ip, current_window, site_id=site_id)
+            _update_stats_and_emit(event, source_ip)
+            if event.get("action") in ("BLOCK", "SIMULATED_BLOCK"):
+                with _stats_lock:
+                    if source_ip not in ("127.0.0.1", "::1"):
+                        _stats["blocked_ips"].add(source_ip)
+        except Exception as exc:
+            logger.error(f"[HostProxy] Inference error: {exc}")
+
+    excluded = {"transfer-encoding", "connection", "content-encoding"}
+    resp_headers = {k: v for k, v in resp.headers.items() if k.lower() not in excluded}
+    from flask import Response
+    return Response(response=resp.content, status=resp.status_code, headers=resp_headers)
 
 
 
