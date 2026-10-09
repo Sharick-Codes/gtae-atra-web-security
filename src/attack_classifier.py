@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 def train_classifier(X: np.ndarray, y: list) -> RandomForestClassifier:
     """Train RandomForestClassifier from CLASSIFIER_CONFIG parameters."""
     n_estimators = CLASSIFIER_CONFIG.get("n_estimators", 100)
-    clf = RandomForestClassifier(n_estimators=n_estimators, random_state=42)
+    clf = RandomForestClassifier(n_estimators=n_estimators, random_state=42, n_jobs=1)
     clf.fit(X, y)
     return clf
 

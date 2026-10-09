@@ -59,52 +59,225 @@ const USERS = {
 
 function buildPage(title, body) {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} - ShopNow Demo</title>
+  <title>${title} - ShopNow Demo (GTAE-ATRA Protected)</title>
   <style>
+    :root {
+      --bg: #0b0c16;
+      --card-bg: #141628;
+      --card-border: #232642;
+      --text: #e2e8f0;
+      --text-sub: #94a3b8;
+      --nav-bg: rgba(14, 16, 32, 0.92);
+      --input-bg: #1e2238;
+      --input-border: #333858;
+      --accent: #8b5cf6;
+      --product-card: #191c32;
+      --shadow: 0 8px 25px rgba(0,0,0,0.4);
+    }
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text: #0f172a;
+      --text-sub: #64748b;
+      --nav-bg: rgba(255, 255, 255, 0.92);
+      --input-bg: #f1f5f9;
+      --input-border: #cbd5e1;
+      --accent: #6d28d9;
+      --product-card: #ffffff;
+      --shadow: 0 8px 25px rgba(15,23,42,0.06);
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
-    nav { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 1rem 2rem;
-          display: flex; align-items: center; gap: 2rem; border-bottom: 1px solid #333; }
-    nav a { color: #7c87ff; text-decoration: none; font-weight: 500; transition: color 0.2s; }
-    nav a:hover { color: #a855f7; }
-    .logo { font-size: 1.3rem; font-weight: 700; color: #7c87ff; }
-    main { max-width: 900px; margin: 3rem auto; padding: 0 1.5rem; }
-    h1 { font-size: 2rem; margin-bottom: 1.5rem; background: linear-gradient(135deg,#7c87ff,#a855f7);
-         -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .card { background: #1e1e2e; border: 1px solid #333; border-radius: 12px;
-            padding: 1.5rem; margin: 1rem 0; }
-    .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 99px;
-             font-size: 0.8rem; font-weight: 600; margin: 0.25rem; }
-    .badge-green  { background: #14532d; color: #4ade80; }
-    .badge-blue   { background: #1e3a5f; color: #60a5fa; }
-    .badge-purple { background: #3b0764; color: #c084fc; }
-    form input { width: 100%; padding: 0.6rem; margin: 0.5rem 0;
-                 background: #252535; border: 1px solid #444; border-radius: 8px; color: #e0e0e0; }
-    form button { padding: 0.7rem 2rem; background: linear-gradient(135deg,#7c87ff,#a855f7);
-                  border: none; border-radius: 8px; color: white; font-weight: 600;
-                  cursor: pointer; margin-top: 0.5rem; }
-    .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
-    .product-card { background: #252535; border-radius: 10px; padding: 1rem; text-align: center; }
-    .price { color: #4ade80; font-size: 1.2rem; font-weight: 700; }
-    footer { text-align: center; padding: 2rem; color: #555; font-size: 0.85rem; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+    nav {
+      background: var(--nav-bg);
+      padding: 0.9rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+    nav a {
+      color: var(--text-sub);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      transition: color 0.2s;
+    }
+    nav a:hover { color: var(--accent); }
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin-right: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .theme-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+    }
+    .theme-btn:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    main { max-width: 960px; margin: 3rem auto; padding: 0 1.5rem; }
+    h1 {
+      font-size: 2.1rem;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, #7c87ff, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: 800;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.75rem;
+      margin: 1.25rem 0;
+      box-shadow: var(--shadow);
+      transition: all 0.25s ease;
+    }
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.3rem 0.85rem;
+      border-radius: 99px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin: 0.3rem 0.3rem 0.3rem 0;
+    }
+    .badge-green  { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+    .badge-blue   { background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); }
+    .badge-purple { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+    form input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      margin: 0.5rem 0;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    form input:focus { border-color: var(--accent); }
+    form button {
+      padding: 0.8rem 2.2rem;
+      background: linear-gradient(135deg, #7c87ff, #a855f7);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 0.75rem;
+      transition: all 0.2s;
+    }
+    form button:hover {
+      box-shadow: 0 4px 15px rgba(139,92,246,0.35);
+      transform: translateY(-1px);
+    }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+    .product-card {
+      background: var(--product-card);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      text-align: center;
+      transition: all 0.25s ease;
+      box-shadow: var(--shadow);
+    }
+    .product-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+    }
+    .price { color: #10b981; font-size: 1.25rem; font-weight: 800; }
+    footer {
+      text-align: center;
+      padding: 2.5rem;
+      color: var(--text-sub);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--card-border);
+      margin-top: 3rem;
+    }
   </style>
 </head>
 <body>
   <nav>
-    <span class="logo">🛡 ShopNow</span>
+    <span class="logo">🛡️ ShopNow</span>
     <a href="/">Home</a>
     <a href="/products">Products</a>
     <a href="/about">About</a>
     <a href="/contact">Contact</a>
     <a href="/login">Login</a>
     <a href="/profile">Profile</a>
+    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">
+      <span id="themeIcon">☀️</span>
+      <span id="themeText">Light</span>
+    </button>
   </nav>
   <main>${body}</main>
   <footer>GTAE-ATRA-NIDS Demo Application &mdash; Security Monitoring Active</footer>
+
+  <script>
+    function toggleTheme() {
+      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      const nxt = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', nxt);
+      localStorage.setItem('site_theme', nxt);
+      updateThemeBtn(nxt);
+    }
+    function updateThemeBtn(t) {
+      const icon = document.getElementById('themeIcon');
+      const text = document.getElementById('themeText');
+      if (t === 'light') {
+        icon.textContent = '🌙';
+        text.textContent = 'Dark';
+      } else {
+        icon.textContent = '☀️';
+        text.textContent = 'Light';
+      }
+    }
+    const saved = localStorage.getItem('site_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
+    updateThemeBtn(saved);
+  </script>
 </body>
 </html>`;
 }

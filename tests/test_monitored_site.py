@@ -1,46 +1,63 @@
+import unittest
+import tempfile
+from pathlib import Path
 from datetime import datetime, timedelta
 
 from monitored_site import WebRequestMonitor
 
 
-def test_normal_request_is_benign_and_logged(tmp_path):
-    log_path = tmp_path / "web-events.csv"
-    monitor = WebRequestMonitor(log_path)
+class TestMonitoredSite(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.log_path = Path(self.temp_dir.name) / "web-events.csv"
+        self.monitor = WebRequestMonitor(self.log_path)
 
-    result = monitor.inspect("192.168.31.164", "GET", "/about", 200)
+    def tearDown(self):
+        self.temp_dir.cleanup()
 
-    assert result["verdict"] == "Benign"
-    assert result["response_decision"] == "No Action (Benign)"
-    assert result["enforcement"] == "decision-only; no traffic blocked"
-    assert len(log_path.read_text(encoding="utf-8").splitlines()) == 2
+    def test_normal_request_is_benign_and_logged(self):
+        result = self.monitor.inspect("192.168.31.164", "GET", "/about", 200)
 
+        self.assertEqual(result["verdict"], "Benign")
+        self.assertEqual(result["response_decision"], "No Action (Benign)")
+        self.assertEqual(result["enforcement"], "decision-only; no traffic blocked")
+        self.assertEqual(len(self.log_path.read_text(encoding="utf-8").splitlines()), 2)
 
-def test_sensitive_path_probe_gets_atra_assessment(tmp_path):
-    monitor = WebRequestMonitor(tmp_path / "web-events.csv")
+    def test_sensitive_path_probe_gets_atra_assessment(self):
+        result = self.monitor.inspect("192.168.31.164", "GET", "/.env", 404)
 
-    result = monitor.inspect("192.168.31.164", "GET", "/.env", 404)
+        self.assertEqual(result["verdict"], "Suspicious")
+        self.assertEqual(result["signal"], "Sensitive path probe")
+        self.assertIn(result["risk_level"], {"Low", "Medium", "High", "Critical"})
+        self.assertNotEqual(result["response_decision"], "No Action (Benign)")
 
-    assert result["verdict"] == "Suspicious"
-    assert result["signal"] == "Sensitive path probe"
-    assert result["risk_level"] in {"Low", "Medium", "High", "Critical"}
-    assert result["response_decision"] != "No Action (Benign)"
+    def test_repeated_404_requests_are_flagged(self):
+        start = datetime(2026, 9, 28, 12, 0, 0)
 
+        for index in range(self.monitor.NOT_FOUND_THRESHOLD - 1):
+            result = self.monitor.inspect(
+                "192.168.31.164", "GET", f"/missing-{index}", 404,
+                now=start + timedelta(seconds=index),
+            )
+            self.assertEqual(result["verdict"], "Benign")
 
-def test_repeated_404_requests_are_flagged(tmp_path):
-    monitor = WebRequestMonitor(tmp_path / "web-events.csv")
-    start = datetime(2026, 9, 28, 12, 0, 0)
-
-    for index in range(monitor.NOT_FOUND_THRESHOLD - 1):
-        result = monitor.inspect(
-            "192.168.31.164", "GET", f"/missing-{index}", 404,
-            now=start + timedelta(seconds=index),
+        result = self.monitor.inspect(
+            "192.168.31.164", "GET", "/missing-final", 404,
+            now=start + timedelta(seconds=self.monitor.NOT_FOUND_THRESHOLD),
         )
-        assert result["verdict"] == "Benign"
 
-    result = monitor.inspect(
-        "192.168.31.164", "GET", "/missing-final", 404,
-        now=start + timedelta(seconds=monitor.NOT_FOUND_THRESHOLD),
-    )
+        self.assertEqual(result["verdict"], "Suspicious")
+        self.assertEqual(result["signal"], "Repeated not-found requests")
 
-    assert result["verdict"] == "Suspicious"
-    assert result["signal"] == "Repeated not-found requests"
+    def test_active_blocking_enforcement(self):
+        # Repeated attacks escalate to Block
+        now = datetime(2026, 9, 28, 12, 0, 0)
+        for i in range(5):
+            res = self.monitor.inspect("10.0.0.99", "GET", "/.env", 404, now=now + timedelta(seconds=i*2))
+        
+        # After escalation, IP is tracked in blocked_ips
+        self.assertTrue(self.monitor.is_blocked("10.0.0.99"))
+
+
+if __name__ == "__main__":
+    unittest.main()

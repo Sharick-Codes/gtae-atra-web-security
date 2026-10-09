@@ -93,6 +93,24 @@ export default function App() {
   const [anomalyHistory, setAnomalyHistory] = useState([]);
   const [reqHistory, setReqHistory] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('gtae_theme') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('gtae_theme', theme);
+    } catch (e) {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   // Read initial site from URL: ?site=ai-research-paper-explainer
   const [selectedSite, setSelectedSite] = useState(() => {
@@ -221,6 +239,13 @@ export default function App() {
     });
   }, [stats, total, alerts_, blocked, rps, latestScore]);
 
+  const isLight = theme === 'light';
+  const gridStroke = isLight ? '#e2e8f0' : '#232542';
+  const axisColor = isLight ? '#64748b' : '#8286a6';
+  const tooltipStyle = isLight
+    ? { background: '#ffffff', border: '1px solid #e2e8f0', color: '#0f172a', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }
+    : { background: '#131428', border: '1px solid #232542', color: '#f1f5f9', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' };
+
   return (
     <div className="app">
       {/* ---- NAVBAR ---- */}
@@ -252,6 +277,15 @@ export default function App() {
         </div>
 
         <div className="navbar-status">
+          <button
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+            aria-label="Toggle Theme"
+          >
+            <span className="theme-toggle-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
+            <span className="theme-toggle-text">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
           <span className={`status-dot ${connected ? 'active' : 'offline'}`} />
           <span className="status-text">{connected ? 'Live' : 'Offline'}</span>
           <span className="status-time">{new Date().toLocaleTimeString()}</span>
@@ -318,10 +352,10 @@ export default function App() {
                         <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-                    <XAxis dataKey="time" tick={{ fill:'#7878a0', fontSize:10 }} />
-                    <YAxis tick={{ fill:'#7878a0', fontSize:10 }} />
-                    <Tooltip contentStyle={{ background:'#161628', border:'1px solid #2a2a45', color:'#e8e8f0' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis dataKey="time" tick={{ fill: axisColor, fontSize:10 }} />
+                    <YAxis tick={{ fill: axisColor, fontSize:10 }} />
+                    <Tooltip contentStyle={tooltipStyle} />
                     <Area type="monotone" dataKey="score" stroke="#a78bfa" fill="url(#scoreGrad)" strokeWidth={2} dot={false} name="Score" />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -332,10 +366,10 @@ export default function App() {
                 <h3 className="chart-title">Request Rate (req/s)</h3>
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={reqHistory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-                    <XAxis dataKey="time" tick={{ fill:'#7878a0', fontSize:10 }} />
-                    <YAxis tick={{ fill:'#7878a0', fontSize:10 }} />
-                    <Tooltip contentStyle={{ background:'#161628', border:'1px solid #2a2a45', color:'#e8e8f0' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis dataKey="time" tick={{ fill: axisColor, fontSize:10 }} />
+                    <YAxis tick={{ fill: axisColor, fontSize:10 }} />
+                    <Tooltip contentStyle={tooltipStyle} />
                     <Line type="monotone" dataKey="rps"  stroke="#60a5fa" strokeWidth={2} dot={false} name="Req/s" />
                   </LineChart>
                 </ResponsiveContainer>
@@ -351,10 +385,10 @@ export default function App() {
                   { name:'Monitor',  count: Math.max(0, alerts_ - blocked) },
                   { name:'Blocked',  count: blocked },
                 ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-                  <XAxis dataKey="name" tick={{ fill:'#7878a0', fontSize:11 }} />
-                  <YAxis tick={{ fill:'#7878a0', fontSize:11 }} />
-                  <Tooltip contentStyle={{ background:'#161628', border:'1px solid #2a2a45', color:'#e8e8f0' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                  <XAxis dataKey="name" tick={{ fill: axisColor, fontSize:11 }} />
+                  <YAxis tick={{ fill: axisColor, fontSize:11 }} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="count" fill="#60a5fa" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>

@@ -175,6 +175,13 @@ def run_atra(detection_results: list, graph_data: dict, embeddings: np.ndarray =
     base_time = datetime(2026, 8, 13, 15, 0, 0)
     atra_results = []
 
+    batch_preds = None
+    if attack_classifier is not None and embeddings is not None:
+        try:
+            batch_preds = attack_classifier.predict(embeddings)
+        except Exception as e:
+            logger.warning(f"Batch predict failed: {e}")
+
     for i, d in enumerate(detection_results):
         if mode == 'realtime':
             current_time = datetime.now()
@@ -193,9 +200,8 @@ def run_atra(detection_results: list, graph_data: dict, embeddings: np.ndarray =
             })
             continue
 
-        if attack_classifier is not None and embeddings is not None:
-            pred = attack_classifier.predict(embeddings[i:i + 1])[0]
-            attack_type = pred
+        if batch_preds is not None:
+            attack_type = str(batch_preds[i])
         else:
             attack_type = d.get("attack_type", "Unknown")
             if attack_type == "None":

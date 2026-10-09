@@ -59,9 +59,89 @@
         .live-pulse {
             animation: pulse-fast 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
+
+        /* THEME VARIABLES & LIGHT/DARK ADAPTATION */
+        :root {
+            --theme-bg: #f8fafc;
+            --theme-header: rgba(255, 255, 255, 0.95);
+            --theme-card: #ffffff;
+            --theme-card-hover: #f1f5f9;
+            --theme-border: #e2e8f0;
+            --theme-text-main: #0f172a;
+            --theme-text-sub: #64748b;
+        }
+        html.dark {
+            --theme-bg: #0a0e17;
+            --theme-header: rgba(17, 24, 39, 0.85);
+            --theme-card: #131c2e;
+            --theme-card-hover: #1b263d;
+            --theme-border: #22324e;
+            --theme-text-main: #f1f5f9;
+            --theme-text-sub: #94a3b8;
+        }
+
+        body {
+            background-color: var(--theme-bg) !important;
+            color: var(--theme-text-main) !important;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        header {
+            background-color: var(--theme-header) !important;
+            border-color: var(--theme-border) !important;
+        }
+        .bg-cyber-card {
+            background-color: var(--theme-card) !important;
+            border-color: var(--theme-border) !important;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .bg-cyber-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .border-cyber-border {
+            border-color: var(--theme-border) !important;
+        }
+
+        html:not(.dark) .text-white {
+            color: #0f172a !important;
+        }
+        html:not(.dark) .text-gray-200 {
+            color: #1e293b !important;
+        }
+        html:not(.dark) .text-gray-300 {
+            color: #334155 !important;
+        }
+        html:not(.dark) .text-gray-400 {
+            color: #64748b !important;
+        }
+        html:not(.dark) .bg-cyber-800\/80 {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+        }
+        html:not(.dark) .bg-cyber-700 {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) #terminalLogs {
+            background-color: #0b1120 !important;
+            color: #38bdf8 !important;
+        }
+
+        /* Top Scanline Animation */
+        .cyber-scanline {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #06b6d4, #8b5cf6, transparent);
+            animation: scanline 3s linear infinite;
+        }
+        @keyframes scanline {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
     </style>
 </head>
-<body class="bg-cyber-900 text-gray-200 min-h-screen font-sans antialiased selection:bg-cyan-500 selection:text-white">
+<body class="bg-cyber-900 text-gray-200 min-h-screen font-sans antialiased selection:bg-cyan-500 selection:text-white relative">
+    <div class="cyber-scanline"></div>
 
     <!-- Top Navigation Bar -->
     <header class="bg-cyber-800/80 backdrop-blur border-b border-cyber-border sticky top-0 z-50 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
@@ -80,6 +160,11 @@
 
         <!-- System Controls -->
         <div class="flex items-center gap-3">
+            <button onclick="toggleSOCTheme()" id="themeToggleBtn" title="Toggle Dark/Light Mode" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyber-border bg-cyber-card hover:border-cyan-500/50 text-xs font-semibold transition-all cursor-pointer">
+                <span id="themeToggleIcon">☀️</span>
+                <span id="themeToggleLabel">Light</span>
+            </button>
+
             <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyber-card border border-cyber-border text-xs text-gray-300">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 live-pulse"></span>
                 <span id="statusText">System Ready</span>
@@ -661,8 +746,40 @@
             document.getElementById("terminalBody").innerHTML = `<div class="text-cyan-400">[CONSOLE CLEARED] Waiting for new execution events...</div>`;
         }
 
+        function toggleSOCTheme() {
+            const html = document.documentElement;
+            const isDark = html.classList.contains('dark');
+            const icon = document.getElementById('themeToggleIcon');
+            const label = document.getElementById('themeToggleLabel');
+
+            if (isDark) {
+                html.classList.remove('dark');
+                localStorage.setItem('soc_theme', 'light');
+                if (icon) icon.textContent = '🌙';
+                if (label) label.textContent = 'Dark';
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('soc_theme', 'dark');
+                if (icon) icon.textContent = '☀️';
+                if (label) label.textContent = 'Light';
+            }
+        }
+
         // Start initialization & recurring pollers
         window.addEventListener("DOMContentLoaded", () => {
+            const saved = localStorage.getItem('soc_theme') || 'dark';
+            const icon = document.getElementById('themeToggleIcon');
+            const label = document.getElementById('themeToggleLabel');
+            if (saved === 'light') {
+                document.documentElement.classList.remove('dark');
+                if (icon) icon.textContent = '🌙';
+                if (label) label.textContent = 'Dark';
+            } else {
+                document.documentElement.classList.add('dark');
+                if (icon) icon.textContent = '☀️';
+                if (label) label.textContent = 'Light';
+            }
+
             initLogStream();
             fetchStats();
             fetchLogs();

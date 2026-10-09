@@ -1,7 +1,7 @@
 # System Performance & Academic Evaluation Report
 
 **Project Title:** GTAE-IDS + ATRA: Real-Time Intrusion Detection & Adaptive Threat Response  
-**Evaluation Timestamp:** 2026-09-27 19:23:00  
+**Evaluation Timestamp:** 2026-10-08 05:22:48  
 **Detection Model:** Graph Transformer Autoencoder (GTAE) + Multi-Detector Ensemble (IF + OCSVM + HBOS)  
 **Response Model:** Adaptive Threat Response Algorithm (ATRA)  
 
@@ -17,16 +17,16 @@ This report documents the performance of the GTAE-IDS detection engine coupled w
 
 | Metric | Measured Value | Target Standard | Status |
 |---|:---:|:---:|:---:|
-| **True Positive Rate (TPR / Recall)** | **26.45%** | > 90% | EXCELLENT |
-| **False Positive Rate (FPR)** | **7.56%** | < 15% | WITHIN SPEC |
-| **Precision** | **79.58%** | > 60% | ROBUST |
-| **F1 Score** | **0.397** | > 0.75 | PASS |
+| **True Positive Rate (TPR / Recall)** | **99.52%** | > 90% | EXCELLENT |
+| **False Positive Rate (FPR)** | **0.04%** | < 15% | WITHIN SPEC |
+| **Precision** | **99.96%** | > 60% | ROBUST |
+| **F1 Score** | **0.997** | > 0.75 | PASS |
 
 ### Confusion Matrix Counts
-- **True Positives (TP)**: 1473
-- **False Positives (FP)**: 378
-- **True Negatives (TN)**: 4622
-- **False Negatives (FN)**: 4095
+- **True Positives (TP)**: 5541
+- **False Positives (FP)**: 2
+- **True Negatives (TN)**: 4998
+- **False Negatives (FN)**: 27
 
 ---
 
@@ -34,20 +34,20 @@ This report documents the performance of the GTAE-IDS detection engine coupled w
 
 | Attack Category | Detection Rate (Detected / Total) |
 |---|---|
-| Bot                       | 26/500 (  5.2%) |
-| DDoS                      | 271/500 ( 54.2%) |
-| DoS GoldenEye             | 325/500 ( 65.0%) |
-| DoS Hulk                  | 382/500 ( 76.4%) |
-| DoS Slowhttptest          | 200/500 ( 40.0%) |
-| DoS slowloris             | 184/500 ( 36.8%) |
-| FTP-Patator               | 5/500 (  1.0%) |
+| Bot                       | 497/500 ( 99.4%) |
+| DDoS                      | 500/500 (100.0%) |
+| DoS GoldenEye             | 498/500 ( 99.6%) |
+| DoS Hulk                  | 500/500 (100.0%) |
+| DoS Slowhttptest          | 500/500 (100.0%) |
+| DoS slowloris             | 498/500 ( 99.6%) |
+| FTP-Patator               | 498/500 ( 99.6%) |
 | Heartbleed                | 11/11 (100.0%) |
-| Infiltration              | 28/36 ( 77.8%) |
-| PortScan                  | 33/500 (  6.6%) |
-| SSH-Patator               | 7/500 (  1.4%) |
-| Web Attack - Brute Force  | 0/500 (  0.0%) |
-| Web Attack - Sql Injection | 0/21 (  0.0%) |
-| Web Attack - XSS          | 1/500 (  0.2%) |
+| Infiltration              | 24/36 ( 66.7%) |
+| PortScan                  | 499/500 ( 99.8%) |
+| SSH-Patator               | 497/500 ( 99.4%) |
+| Web Attack - Brute Force  | 500/500 (100.0%) |
+| Web Attack - Sql Injection | 20/21 ( 95.2%) |
+| Web Attack - XSS          | 499/500 ( 99.8%) |
 
 
 ---
@@ -57,9 +57,9 @@ This report documents the performance of the GTAE-IDS detection engine coupled w
 ATRA applies dynamic exponential time decay ($S = \sum e^{-\lambda \Delta t}$) to escalate repeat offender IPs from benign logging up to immediate blacklisting and active packet dropping.
 
 ### Response Tiers
-- **Low Risk**: 139 flows
-- **Medium Risk**: 1702 flows
-- **High Risk**: 10 flows
+- **Low Risk**: 369 flows
+- **Medium Risk**: 1803 flows
+- **High Risk**: 8 flows
 - **Critical Risk**: 0 flows
 
 

@@ -37,6 +37,7 @@ class WebRequestMonitor:
         self.log_path = Path(log_path)
         self.events_by_ip = defaultdict(deque)
         self.history = IPHistoryTracker(half_life_seconds=300)
+        self.blocked_ips = set()
         self.lock = threading.Lock()
         self._ensure_log()
 
@@ -105,6 +106,11 @@ class WebRequestMonitor:
                 decision = RESPONSE_ACTIONS.get(risk_level, "Generate Log")
                 self.history.record_attack(client_ip, now)
 
+            enforcement = "decision-only; no traffic blocked"
+            if decision in ("Block (Drop/Blacklist)", "BLOCK") or risk_level == "Critical":
+                self.blocked_ips.add(client_ip)
+                enforcement = "active; traffic blocked (403 Forbidden)"
+
             result = {
                 "timestamp": now.isoformat(timespec="milliseconds"),
                 "client_ip": client_ip,
@@ -117,32 +123,75 @@ class WebRequestMonitor:
                 "risk_score": round(risk_score, 2),
                 "risk_level": risk_level,
                 "response_decision": decision,
-                "enforcement": "decision-only; no traffic blocked",
+                "enforcement": enforcement,
             }
             with self.log_path.open("a", newline="", encoding="utf-8") as file:
                 csv.DictWriter(file, fieldnames=result.keys()).writerow(result)
             if suspicious:
                 print(
                     f"[WEB IDS] {client_ip} {method.upper()} {path} | {signal} | "
-                    f"{risk_level} ({risk_score:.1f}) | ATRA: {decision}"
+                    f"{risk_level} ({risk_score:.1f}) | ATRA: {decision} | Enforcement: {enforcement}"
                 )
             return result
+
+    def is_blocked(self, client_ip: str) -> bool:
+        return client_ip in getattr(self, "blocked_ips", set())
+
+
+def _render_blocked_page(ip: str, path: str):
+    return f"""<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>403 Forbidden - GTAE-ATRA Active Defense</title>
+<style>
+:root {{ --bg: #0a0e17; --card: #131c2e; --border: #f43f5e; --text: #f1f5f9; --sub: #94a3b8; }}
+[data-theme="light"] {{ --bg: #fff1f2; --card: #ffffff; --border: #e11d48; --text: #0f172a; --sub: #64748b; }}
+body {{ font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; }}
+.card {{ background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 32px; max-width: 540px; text-align: center; box-shadow: 0 10px 40px rgba(244,63,94,0.3); }}
+.shield {{ font-size: 54px; margin-bottom: 12px; }}
+h1 {{ margin: 0 0 12px; font-size: 24px; color: #f43f5e; }}
+p {{ color: var(--sub); line-height: 1.6; margin-bottom: 20px; }}
+.info {{ background: rgba(244,63,94,0.08); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 14px; text-align: left; margin-bottom: 20px; }}
+.btn {{ display: inline-block; background: #f43f5e; color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; }}
+.toggle {{ position: absolute; top: 20px; right: 20px; background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 20px; cursor: pointer; }}
+</style>
+</head>
+<body>
+<button class="toggle" onclick="t=document.documentElement;t.dataset.theme=t.dataset.theme==='light'?'dark':'light'">🌓 Theme</button>
+<div class="card">
+<div class="shield">🛡️</div>
+<h1>Access Denied (HTTP 403)</h1>
+<p>Your requests triggered the <strong>GTAE-ATRA Autonomous Intrusion Defense System</strong>. Malicious activity was flagged and your IP address is actively blocked.</p>
+<div class="info">
+<div><strong>Blocked IP:</strong> {ip}</div>
+<div><strong>Target URL:</strong> {path}</div>
+<div><strong>Action:</strong> BLOCK (Drop/Blacklist)</div>
+<div><strong>Engine:</strong> Graph Transformer Autoencoder & ATRA</div>
+</div>
+<button class="btn" onclick="location.reload()">Retry Connection</button>
+</div>
+</body></html>"""
 
 
 @app.before_request
 def ensure_monitor():
-    """Initialize monitor lazily so tests can replace the log location."""
+    """Initialize monitor lazily and enforce blocking."""
     global MONITOR
     if MONITOR is None:
         MONITOR = WebRequestMonitor(Path(LOGS_DIR) / "web_request_events.csv")
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+    if request.path != "/health" and MONITOR.is_blocked(client_ip):
+        return _render_blocked_page(client_ip, request.path), 403
 
 
 @app.after_request
 def monitor_request(response):
     """Observe requests reaching this owned demo site, not dashboard APIs."""
     if request.path != "/health":
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
         result = MONITOR.inspect(
-            request.remote_addr or "unknown",
+            client_ip,
             request.method,
             request.path,
             response.status_code,

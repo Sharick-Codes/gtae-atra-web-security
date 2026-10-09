@@ -1,25 +1,25 @@
 {
-  "anomaly_threshold": 0.0005825837142765522,
+  "anomaly_threshold": 0.00040488276863470674,
   "in_features": 20,
   "pe_dim": 16,
   "num_records": 1000,
   "num_benign": 800,
   "num_attack": 200,
-  "benign_error_mean": 0.00022223054838832468,
-  "benign_error_std": 0.0002705107908695936,
-  "attack_error_mean": 0.03463194891810417,
-  "attack_error_std": 0.032749541103839874,
+  "benign_error_mean": 0.00014469021698459983,
+  "benign_error_std": 0.00023432493617292494,
+  "attack_error_mean": 0.03453968092799187,
+  "attack_error_std": 0.0332530252635479,
   "metrics": {
     "name": "ensemble",
     "tp": 200,
-    "fp": 70,
-    "tn": 730,
+    "fp": 81,
+    "tn": 719,
     "fn": 0,
     "tpr": 1.0,
-    "fpr": 0.0875,
-    "precision": 0.7407,
+    "fpr": 0.1013,
+    "precision": 0.7117,
     "recall": 1.0,
-    "f1": 0.8511
+    "f1": 0.8316
   },
   "per_attack_metrics": {
     "AbnormalMethod": {
